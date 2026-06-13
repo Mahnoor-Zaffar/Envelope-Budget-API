@@ -1,0 +1,21 @@
+{
+  "name": "personal-budget-expressjs",
+  "version": "1.0.0",
+  "description": "Enterprise-grade Envelope Budgeting API with Express.js and a native vanilla frontend client",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "budget",
+    "envelope-budgeting",
+    "express",
+    "rest-api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

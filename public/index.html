@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Envelope Budgeting — Track spending, manage envelopes, and transfer funds with a clean Apple HIG-inspired interface." />
+  <title>Envelope Budget</title>
+
+  <!-- San Francisco / System Font Stack -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ─── Translucent Header ──────────────────────────────────────────── -->
+  <header id="app-header" class="header">
+    <div class="header__inner">
+      <div class="header__brand">
+        <span class="header__icon">💰</span>
+        <h1 class="header__title">Envelope Budget</h1>
+      </div>
+      <div class="header__stats" id="header-stats">
+        <div class="stat">
+          <span class="stat__label">Total Budget</span>
+          <span class="stat__value" id="stat-total-budget">$0.00</span>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Envelopes</span>
+          <span class="stat__value" id="stat-envelope-count">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Total Balance</span>
+          <span class="stat__value" id="stat-total-balance">$0.00</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── Main Content ────────────────────────────────────────────────── -->
+  <main id="app-main" class="main">
+
+    <!-- ─── Actions Panel ─────────────────────────────────────────────── -->
+    <section class="actions-panel" id="actions-panel">
+
+      <!-- Create Envelope -->
+      <div class="card card--form" id="create-card">
+        <h2 class="card__heading">New Envelope</h2>
+        <form id="create-form" class="form" autocomplete="off">
+          <div class="form__group">
+            <label class="form__label" for="create-title">Category</label>
+            <input
+              class="form__input"
+              type="text"
+              id="create-title"
+              name="title"
+              placeholder="e.g. Groceries"
+              required
+              maxlength="128"
+            />
+          </div>
+          <div class="form__group">
+            <label class="form__label" for="create-budget">Budget</label>
+            <div class="form__input-wrapper">
+              <span class="form__prefix">$</span>
+              <input
+                class="form__input form__input--prefixed"
+                type="number"
+                id="create-budget"
+                name="budget"
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                required
+              />
+            </div>
+          </div>
+          <button class="btn btn--primary" type="submit" id="create-submit">
+            <span class="btn__icon">＋</span>
+            Create Envelope
+          </button>
+        </form>
+      </div>
+
+      <!-- Transfer Funds -->
+      <div class="card card--form" id="transfer-card">
+        <h2 class="card__heading">Transfer Funds</h2>
+        <form id="transfer-form" class="form" autocomplete="off">
+          <div class="form__group">
+            <label class="form__label" for="transfer-from">From</label>
+            <select class="form__select" id="transfer-from" name="fromId" required>
+              <option value="">Select source…</option>
+            </select>
+          </div>
+          <div class="form__group">
+            <label class="form__label" for="transfer-to">To</label>
+            <select class="form__select" id="transfer-to" name="toId" required>
+              <option value="">Select destination…</option>
+            </select>
+          </div>
+          <div class="form__group">
+            <label class="form__label" for="transfer-amount">Amount</label>
+            <div class="form__input-wrapper">
+              <span class="form__prefix">$</span>
+              <input
+                class="form__input form__input--prefixed"
+                type="number"
+                id="transfer-amount"
+                name="amount"
+                placeholder="0.00"
+                min="0.01"
+                step="0.01"
+                required
+              />
+            </div>
+          </div>
+          <button class="btn btn--secondary" type="submit" id="transfer-submit">
+            <span class="btn__icon">⇄</span>
+            Transfer
+          </button>
+        </form>
+      </div>
+
+    </section>
+
+    <!-- ─── Envelopes Grid ────────────────────────────────────────────── -->
+    <section class="envelopes-section" id="envelopes-section">
+      <h2 class="section__heading">Your Envelopes</h2>
+      <div class="envelopes-grid" id="envelopes-grid">
+        <!-- Envelope cards rendered by app.js -->
+      </div>
+
+      <!-- Empty state -->
+      <div class="empty-state" id="empty-state">
+        <div class="empty-state__icon">📭</div>
+        <p class="empty-state__text">No envelopes yet.</p>
+        <p class="empty-state__subtext">Create your first budget category above to get started.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ─── Edit Modal ──────────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="edit-modal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-labelledby="modal-title">
+      <div class="modal__header">
+        <h2 class="modal__title" id="modal-title">Edit Envelope</h2>
+        <button class="modal__close" id="modal-close" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="edit-form" class="form" autocomplete="off">
+        <input type="hidden" id="edit-id" name="id" />
+        <div class="form__group">
+          <label class="form__label" for="edit-title">Category</label>
+          <input
+            class="form__input"
+            type="text"
+            id="edit-title"
+            name="title"
+            maxlength="128"
+            required
+          />
+        </div>
+        <div class="form__group">
+          <label class="form__label" for="edit-budget">Budget</label>
+          <div class="form__input-wrapper">
+            <span class="form__prefix">$</span>
+            <input
+              class="form__input form__input--prefixed"
+              type="number"
+              id="edit-budget"
+              name="budget"
+              min="0"
+              step="0.01"
+              required
+            />
+          </div>
+        </div>
+        <div class="modal__actions">
+          <button class="btn btn--ghost" type="button" id="modal-cancel">Cancel</button>
+          <button class="btn btn--primary" type="submit" id="modal-save">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Spend Modal ─────────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="spend-modal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-labelledby="spend-modal-title">
+      <div class="modal__header">
+        <h2 class="modal__title" id="spend-modal-title">Record Spending</h2>
+        <button class="modal__close" id="spend-modal-close" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="spend-form" class="form" autocomplete="off">
+        <input type="hidden" id="spend-id" name="id" />
+        <div class="spend-info" id="spend-info">
+          <!-- Filled dynamically -->
+        </div>
+        <div class="form__group">
+          <label class="form__label" for="spend-amount">Amount to spend</label>
+          <div class="form__input-wrapper">
+            <span class="form__prefix">$</span>
+            <input
+              class="form__input form__input--prefixed"
+              type="number"
+              id="spend-amount"
+              name="amount"
+              placeholder="0.00"
+              min="0.01"
+              step="0.01"
+              required
+            />
+          </div>
+        </div>
+        <div class="modal__actions">
+          <button class="btn btn--ghost" type="button" id="spend-cancel">Cancel</button>
+          <button class="btn btn--danger" type="submit" id="spend-submit">Record Spending</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Toast Container ─────────────────────────────────────────────── -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
