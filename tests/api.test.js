@@ -16,7 +16,7 @@ if (process.env.TEST_DATABASE_URL) {
   throw new Error('DATABASE_URL or TEST_DATABASE_URL is required to run tests.');
 }
 
-const { describe, it, before, beforeEach } = require('node:test');
+const { describe, it, before, beforeEach, after } = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
 const { setupTestDatabase, resetDatabase } = require('./helpers');
