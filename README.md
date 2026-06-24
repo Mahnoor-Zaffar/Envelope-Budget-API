@@ -55,7 +55,7 @@ This project evolved from an in-memory Express prototype (Part I) into a **persi
 | **Phase 2** | Sequelize models, envelope + transaction API, Swagger integration | ✅ Complete |
 | **Phase 3** | Local verification (health check, Swagger, curl/API testing) | ✅ Complete |
 | **Phase 4** | Frontend migration to `/transactions` API | ✅ Complete |
-| **Phase 5** | Production deployment on Render | ⏳ Pending |
+| **Phase 5** | Production deployment on Render | ✅ Complete |
 
 See [`todo.md`](todo.md) for the live task board.
 
@@ -377,6 +377,14 @@ The distribute-income panel was removed — that endpoint is not part of Part II
 ## Deployment
 
 Production deployment targets **Render** with a managed PostgreSQL instance.
+
+**Live application:** https://envelope-budget-api.onrender.com
+
+| Resource | URL |
+|----------|-----|
+| Frontend | https://envelope-budget-api.onrender.com |
+| Health check | https://envelope-budget-api.onrender.com/health |
+| Swagger UI | https://envelope-budget-api.onrender.com/api-docs |
 
 - **Quick start:** use the included [`render.yaml`](render.yaml) Blueprint
 - **Step-by-step guide:** see [`DEPLOYMENT.md`](DEPLOYMENT.md)

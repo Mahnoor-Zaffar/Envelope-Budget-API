@@ -3,8 +3,7 @@
 ## 📋 Kanban Board
 
 ### 🟥 TO DO
-- [ ] **Deploy application on Render**
-  - Set up a managed PostgreSQL database and Web Service on Render, connect environment variables, and deploy from GitHub. See `DEPLOYMENT.md`.
+- *(none — Part II complete)*
 
 ---
 
@@ -27,3 +26,5 @@
 - [x] Setup local database (PostgreSQL running locally with `.env` configured)
 - [x] Initialize Git tracking and push Part II refactor to GitHub
 - [x] Update frontend for Part II API (`POST /transactions`, `GET /transactions`; removed distribute UI)
+- [x] Deploy application on Render
+  - Live at https://envelope-budget-api.onrender.com (Web Service + Managed PostgreSQL, commit `008b08d`)
