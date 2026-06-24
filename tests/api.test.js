@@ -8,10 +8,17 @@ process.env.NODE_ENV = 'test';
 if (process.env.TEST_DATABASE_URL) {
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 } else if (process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = process.env.DATABASE_URL.replace(
-    /(postgresql:\/\/[^/]+\/)([^/?]+)/,
-    '$1$2_test',
-  );
+  const dbMatch = process.env.DATABASE_URL.match(/\/([^/?]+)(\?|$)/);
+  const dbName = dbMatch?.[1] || '';
+
+  // Local dev: envelope_budget → envelope_budget_test
+  // CI already uses envelope_budget_test — do not double-append
+  if (!dbName.endsWith('_test')) {
+    process.env.DATABASE_URL = process.env.DATABASE_URL.replace(
+      /(postgresql:\/\/[^/]+\/)([^/?]+)/,
+      '$1$2_test',
+    );
+  }
 } else {
   throw new Error('DATABASE_URL or TEST_DATABASE_URL is required to run tests.');
 }
