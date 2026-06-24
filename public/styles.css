@@ -716,8 +716,18 @@ button, input, select, textarea {
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-md);
+}
+
+.form__hint {
+  font-size: var(--text-xs);
+  color: var(--color-ink-tertiary);
+  line-height: 1.4;
+}
+
+.panel--accent {
+  border-color: rgba(94, 106, 210, 0.25);
 }
 
 /* ─── Buttons ─────────────────────────────────────────────────────────────── */

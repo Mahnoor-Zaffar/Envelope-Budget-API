@@ -39,35 +39,39 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX = 100;
 const rateLimitMap = new Map();
 
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of rateLimitMap) {
-    if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-      rateLimitMap.delete(ip);
+if (process.env.NODE_ENV !== 'test') {
+  setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of rateLimitMap) {
+      if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+        rateLimitMap.delete(ip);
+      }
     }
-  }
-}, 2 * 60 * 1000);
+  }, 2 * 60 * 1000);
+}
 
-app.use((req, res, next) => {
-  const ip = req.ip;
-  const now = Date.now();
-  let entry = rateLimitMap.get(ip);
+if (process.env.NODE_ENV !== 'test') {
+  app.use((req, res, next) => {
+    const ip = req.ip;
+    const now = Date.now();
+    let entry = rateLimitMap.get(ip);
 
-  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-    entry = { windowStart: now, count: 0 };
-    rateLimitMap.set(ip, entry);
-  }
+    if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+      entry = { windowStart: now, count: 0 };
+      rateLimitMap.set(ip, entry);
+    }
 
-  entry.count++;
-  res.set('X-RateLimit-Limit', String(RATE_LIMIT_MAX));
-  res.set('X-RateLimit-Remaining', String(Math.max(0, RATE_LIMIT_MAX - entry.count)));
+    entry.count++;
+    res.set('X-RateLimit-Limit', String(RATE_LIMIT_MAX));
+    res.set('X-RateLimit-Remaining', String(Math.max(0, RATE_LIMIT_MAX - entry.count)));
 
-  if (entry.count > RATE_LIMIT_MAX) {
-    return res.status(429).json({ error: ERRORS.RATE_LIMITED });
-  }
+    if (entry.count > RATE_LIMIT_MAX) {
+      return res.status(429).json({ error: ERRORS.RATE_LIMITED });
+    }
 
-  next();
-});
+    next();
+  });
+}
 
 // ─── Body Parser ────────────────────────────────────────────────────────────────
 

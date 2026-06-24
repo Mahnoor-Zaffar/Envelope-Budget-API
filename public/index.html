@@ -189,10 +189,11 @@
                     <th>Category</th>
                     <th>Date</th>
                     <th>Amount</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="transactions-body">
-                  <tr><td colspan="4" style="text-align:center;color:var(--color-ink-tertiary);padding:24px;">No transactions yet</td></tr>
+                  <tr><td colspan="5" style="text-align:center;color:var(--color-ink-tertiary);padding:24px;">No transactions yet</td></tr>
                 </tbody>
               </table>
             </div>
@@ -250,6 +251,25 @@
                     </div>
                   </div>
                   <button class="btn btn--secondary" type="submit" id="transfer-submit">Transfer</button>
+                </form>
+              </div>
+            </div>
+
+            <div class="panel panel--accent">
+              <div class="panel__header">
+                <div class="panel__title">Distribute Income</div>
+              </div>
+              <div class="panel__body">
+                <form id="distribute-form" class="form" autocomplete="off">
+                  <div class="form__group">
+                    <label class="form__label" for="distribute-income">Total income</label>
+                    <div class="form__input-wrapper">
+                      <span class="form__prefix">$</span>
+                      <input class="form__input form__input--prefixed" type="number" id="distribute-income" name="totalIncome" placeholder="e.g. 3000.00" min="0.01" step="0.01" required />
+                    </div>
+                  </div>
+                  <p class="form__hint">Splits income proportionally across all envelopes based on budget allocation.</p>
+                  <button class="btn btn--primary" type="submit" id="distribute-submit">Distribute income</button>
                 </form>
               </div>
             </div>
@@ -312,6 +332,67 @@
         <div class="modal__actions">
           <button class="btn btn--ghost" type="button" id="spend-cancel">Cancel</button>
           <button class="btn btn--danger" type="submit" id="spend-submit">Record spending</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Fund Modal ──────────────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="fund-modal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-labelledby="fund-modal-title">
+      <div class="modal__header">
+        <h2 class="modal__title" id="fund-modal-title">Add Funds</h2>
+        <button class="modal__close" id="fund-modal-close" aria-label="Close modal" type="button">&times;</button>
+      </div>
+      <form id="fund-form" class="form" autocomplete="off">
+        <input type="hidden" id="fund-id" name="id" />
+        <div class="spend-info" id="fund-info"></div>
+        <div class="form__group">
+          <label class="form__label" for="fund-amount">Amount to add</label>
+          <div class="form__input-wrapper">
+            <span class="form__prefix">$</span>
+            <input class="form__input form__input--prefixed" type="number" id="fund-amount" name="amount" placeholder="0.00" min="0.01" step="0.01" required />
+          </div>
+        </div>
+        <div class="modal__actions">
+          <button class="btn btn--ghost" type="button" id="fund-cancel">Cancel</button>
+          <button class="btn btn--primary" type="submit" id="fund-submit">Add funds</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Edit Transaction Modal ──────────────────────────────────────────── -->
+  <div class="modal-overlay" id="tx-edit-modal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-labelledby="tx-edit-modal-title">
+      <div class="modal__header">
+        <h2 class="modal__title" id="tx-edit-modal-title">Edit Transaction</h2>
+        <button class="modal__close" id="tx-edit-modal-close" aria-label="Close modal" type="button">&times;</button>
+      </div>
+      <form id="tx-edit-form" class="form" autocomplete="off">
+        <input type="hidden" id="tx-edit-id" name="id" />
+        <div class="form__group">
+          <label class="form__label" for="tx-edit-recipient">Payee</label>
+          <input class="form__input" type="text" id="tx-edit-recipient" name="recipient" maxlength="256" required />
+        </div>
+        <div class="form__group">
+          <label class="form__label" for="tx-edit-envelope">Category</label>
+          <select class="form__select" id="tx-edit-envelope" name="envelopeId" required></select>
+        </div>
+        <div class="form__group">
+          <label class="form__label" for="tx-edit-date">Date</label>
+          <input class="form__input" type="datetime-local" id="tx-edit-date" name="date" required />
+        </div>
+        <div class="form__group">
+          <label class="form__label" for="tx-edit-amount">Amount</label>
+          <div class="form__input-wrapper">
+            <span class="form__prefix">$</span>
+            <input class="form__input form__input--prefixed" type="number" id="tx-edit-amount" name="amount" min="0.01" step="0.01" required />
+          </div>
+        </div>
+        <div class="modal__actions">
+          <button class="btn btn--ghost" type="button" id="tx-edit-cancel">Cancel</button>
+          <button class="btn btn--primary" type="submit" id="tx-edit-save">Save changes</button>
         </div>
       </form>
     </div>

@@ -56,6 +56,7 @@ This project evolved from an in-memory Express prototype (Part I) into a **persi
 | **Phase 3** | Local verification (health check, Swagger, curl/API testing) | ✅ Complete |
 | **Phase 4** | Frontend migration to `/transactions` API | ✅ Complete |
 | **Phase 5** | Production deployment on Render | ✅ Complete |
+| **Phase 6** | Part III — income/funding, transaction UI parity, integration tests | ✅ Complete |
 
 See [`todo.md`](todo.md) for the live task board.
 
@@ -284,6 +285,8 @@ All endpoints accept and return **JSON**. Base URLs:
 | `PUT` | `/envelopes/:id` | Update `title`, `budget`, and/or `balance` |
 | `DELETE` | `/envelopes/:id` | Delete envelope (cascades transactions) |
 | `POST` | `/envelopes/transfer/:fromId/:toId` | Atomic fund transfer (`amount`) |
+| `POST` | `/envelopes/distribute` | Distribute income proportionally by budget allocation |
+| `POST` | `/envelopes/:id/fund` | Add funds to a single envelope balance |
 
 **Create envelope example:**
 
@@ -354,23 +357,39 @@ Use Swagger UI to explore all endpoints, payload shapes, and status code variati
 The client lives in `public/` and is served as static assets by Express. It provides:
 
 - Sidebar navigation with **Overview**, **Envelopes**, **Activity**, and **New & Transfer** views
-- Data-dense envelope table with monospace balances and progress bars
-- Transaction ledger with payee, date, amount, and category micro-badges
+- Data-dense envelope table with monospace balances, progress bars, and **Add funds** action
+- Transaction ledger with edit/delete, payee, date, amount, and category micro-badges
+- **Distribute income** across envelopes proportionally by budget allocation
 - Create, edit, delete, transfer, and spend flows via flat modals and border-aligned inputs
 - Toast notifications and keyboard-accessible modal dialogs
 - Linear.app-inspired dark theme with lavender accent (`#5e6ad2`)
 
 ### Phase 4 — API alignment (complete)
 
-The frontend uses the Part II transaction API:
-
 | Feature | Endpoint |
 |---------|----------|
 | Record spending | `POST /transactions` |
-| View history | `GET /transactions` (filtered by `envelopeId`) |
-| Envelope CRUD + transfer | `/envelopes` (unchanged) |
+| Edit / delete transaction | `PUT` / `DELETE /transactions/:id` |
+| View history | `GET /transactions` |
+| Distribute income | `POST /envelopes/distribute` |
+| Add funds to envelope | `POST /envelopes/:id/fund` |
+| Envelope CRUD + transfer | `/envelopes` |
 
-The distribute-income panel was removed — that endpoint is not part of Part II. Income can be added manually via envelope budget updates until a distribute endpoint is re-implemented.
+---
+
+## Testing
+
+Integration tests use Node.js built-in `node:test` and `supertest`. Tests run against a separate database (`{your_db}_test` by default, or set `TEST_DATABASE_URL`).
+
+```bash
+# Create a test database (once)
+createdb envelope_budget_test
+
+# Run the suite
+npm test
+```
+
+Coverage includes envelope CRUD, transfers, income distribution, fund top-ups, transaction balance deduction/refund, and insufficient-funds rejection.
 
 ---
 
@@ -419,6 +438,8 @@ Typography uses **Inter** for UI and **JetBrains Mono** for numeric values. Spac
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | Render deployment instructions |
 | [`docs/swagger.json`](docs/swagger.json) | OpenAPI 3.0 specification |
 | [`design.md`](design.md) | Linear.app design system reference |
+| [`PRD-PART-III.md`](PRD-PART-III.md) | Part III scope — income, UI parity, tests |
+| [`LICENSE`](LICENSE) | MIT license |
 
 ---
 

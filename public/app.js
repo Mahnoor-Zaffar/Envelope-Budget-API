@@ -26,6 +26,7 @@ const ICONS = {
   edit: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 2l3 3-8 8H3v-3l8-8z"/></svg>',
   delete: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M5 4V3h6v1M6 7v5M10 7v5M4 4l1 9h6l1-9"/></svg>',
   spend: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10"/></svg>',
+  fund: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M5 5l3-3 3 3M5 11l3 3 3-3"/></svg>',
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -49,7 +50,9 @@ const DOM = {
   transferFrom:         $('#transfer-from'),
   transferTo:           $('#transfer-to'),
   transferAmount:       $('#transfer-amount'),
-  envelopesGrid:        $('#envelopes-grid'),
+  distributeForm:         $('#distribute-form'),
+  distributeIncome:       $('#distribute-income'),
+  envelopesGrid:          $('#envelopes-grid'),
   envelopesTable:       $('#envelopes-table'),
   envelopesCountLabel:  $('#envelopes-count-label'),
   emptyState:           $('#empty-state'),
@@ -71,6 +74,22 @@ const DOM = {
   spendNote:            $('#spend-note'),
   spendModalClose:      $('#spend-modal-close'),
   spendCancel:          $('#spend-cancel'),
+  fundModal:            $('#fund-modal'),
+  fundForm:             $('#fund-form'),
+  fundId:               $('#fund-id'),
+  fundInfo:             $('#fund-info'),
+  fundAmount:           $('#fund-amount'),
+  fundModalClose:       $('#fund-modal-close'),
+  fundCancel:           $('#fund-cancel'),
+  txEditModal:          $('#tx-edit-modal'),
+  txEditForm:           $('#tx-edit-form'),
+  txEditId:             $('#tx-edit-id'),
+  txEditRecipient:      $('#tx-edit-recipient'),
+  txEditEnvelope:       $('#tx-edit-envelope'),
+  txEditDate:           $('#tx-edit-date'),
+  txEditAmount:         $('#tx-edit-amount'),
+  txEditModalClose:     $('#tx-edit-modal-close'),
+  txEditCancel:         $('#tx-edit-cancel'),
   confirmModal:         $('#confirm-modal'),
   confirmModalMsg:      $('#confirm-modal-msg'),
   confirmModalClose:    $('#confirm-modal-close'),
@@ -133,6 +152,18 @@ const api = {
       body: JSON.stringify({ amount }),
     }),
 
+  distribute: (totalIncome) =>
+    apiFetch(`${API_BASE}/distribute`, {
+      method: 'POST',
+      body: JSON.stringify({ totalIncome }),
+    }),
+
+  fund: (envelopeId, amount) =>
+    apiFetch(`${API_BASE}/${envelopeId}/fund`, {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    }),
+
   spend: (envelopeId, amount, recipient) =>
     apiFetch(TRANSACTIONS_BASE, {
       method: 'POST',
@@ -145,6 +176,15 @@ const api = {
     }),
 
   getAllTransactions: () => apiFetch(TRANSACTIONS_BASE),
+
+  updateTransaction: (id, updates) =>
+    apiFetch(`${TRANSACTIONS_BASE}/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    }),
+
+  deleteTransaction: (id) =>
+    apiFetch(`${TRANSACTIONS_BASE}/${id}`, { method: 'DELETE' }),
 
   getHistory: async (envelopeId) => {
     const cached = transactionsByEnvelope[envelopeId];
@@ -184,6 +224,16 @@ function formatDateShort(iso) {
 function escapeHtml(str) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   return str.replace(/[&<>"']/g, (c) => map[c]);
+}
+
+function formatDateInput(iso) {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function parseDateInput(value) {
+  return new Date(value).toISOString();
 }
 
 function getEnvelopeTitle(envelopeId) {
@@ -305,6 +355,7 @@ function renderEnvelopeRow(env) {
       <td>
         <div class="row-actions">
           <button class="icon-btn icon-btn--primary" data-action="spend" data-id="${env.id}" title="Record spending" aria-label="Spend from ${escapeHtml(env.title)}">${ICONS.spend}</button>
+          <button class="icon-btn" data-action="fund" data-id="${env.id}" title="Add funds" aria-label="Add funds to ${escapeHtml(env.title)}">${ICONS.fund}</button>
           <button class="icon-btn" data-action="edit" data-id="${env.id}" title="Edit" aria-label="Edit ${escapeHtml(env.title)}">${ICONS.edit}</button>
           <button class="icon-btn icon-btn--danger" data-action="delete" data-id="${env.id}" title="Delete" aria-label="Delete ${escapeHtml(env.title)}">${ICONS.delete}</button>
         </div>
@@ -313,10 +364,19 @@ function renderEnvelopeRow(env) {
   `;
 }
 
-function renderTransactionRow(tx, showBadge = true) {
+function renderTransactionRow(tx, options = {}) {
+  const { showBadge = true, showActions = false } = options;
   const category = getEnvelopeTitle(tx.envelopeId);
+  const actionsCell = showActions ? `
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" data-tx-action="edit" data-tx-id="${tx.id}" title="Edit transaction" aria-label="Edit transaction">${ICONS.edit}</button>
+          <button class="icon-btn icon-btn--danger" data-tx-action="delete" data-tx-id="${tx.id}" title="Delete transaction" aria-label="Delete transaction">${ICONS.delete}</button>
+        </div>
+      </td>` : '';
+
   return `
-    <tr>
+    <tr data-tx-id="${tx.id}">
       <td>
         <div class="data-table__category">${escapeHtml(tx.recipient || 'Expense')}</div>
       </td>
@@ -329,6 +389,7 @@ function renderTransactionRow(tx, showBadge = true) {
       <td>
         <span class="data-table__mono data-table__mono--danger">-${formatCurrency(tx.amount)}</span>
       </td>
+      ${actionsCell}
     </tr>
   `;
 }
@@ -353,9 +414,9 @@ function renderTransactions() {
 
   if (sorted.length === 0) {
     DOM.transactionsBody.innerHTML =
-      '<tr><td colspan="4" style="text-align:center;color:var(--color-ink-tertiary);padding:24px;">No transactions yet</td></tr>';
+      '<tr><td colspan="5" style="text-align:center;color:var(--color-ink-tertiary);padding:24px;">No transactions yet</td></tr>';
   } else {
-    DOM.transactionsBody.innerHTML = sorted.map((tx) => renderTransactionRow(tx)).join('');
+    DOM.transactionsBody.innerHTML = sorted.map((tx) => renderTransactionRow(tx, { showActions: true })).join('');
   }
 
   const recent = sorted.slice(0, 5);
@@ -399,16 +460,20 @@ function renderStats() {
 }
 
 function renderTransferOptions() {
-  const buildOptions = () => {
-    let html = '<option value="">Select envelope…</option>';
+  const buildOptions = (placeholder = 'Select envelope…', selectedId = null) => {
+    let html = `<option value="">${placeholder}</option>`;
     for (const env of envelopes) {
-      html += `<option value="${env.id}">${escapeHtml(env.title)} (${formatCurrency(env.balance)})</option>`;
+      const selected = env.id === selectedId ? ' selected' : '';
+      html += `<option value="${env.id}"${selected}>${escapeHtml(env.title)} (${formatCurrency(env.balance)})</option>`;
     }
     return html;
   };
 
   DOM.transferFrom.innerHTML = buildOptions();
   DOM.transferTo.innerHTML = buildOptions();
+  if (DOM.txEditEnvelope) {
+    DOM.txEditEnvelope.innerHTML = buildOptions('Select category…', parseInt(DOM.txEditEnvelope.dataset.selected, 10) || null);
+  }
 }
 
 function refreshUI() {
@@ -609,6 +674,60 @@ async function handleTransfer(e) {
   }
 }
 
+async function handleDistribute(e) {
+  e.preventDefault();
+
+  const totalIncome = parseFloat(DOM.distributeIncome.value);
+
+  if (isNaN(totalIncome) || totalIncome <= 0) {
+    showToast('Income must be a positive number.', 'error');
+    return;
+  }
+
+  if (envelopes.length === 0) {
+    showToast('Create at least one envelope before distributing income.', 'error');
+    return;
+  }
+
+  try {
+    await api.distribute(totalIncome);
+    showToast(`Distributed ${formatCurrency(totalIncome)} across envelopes`, 'success');
+    DOM.distributeForm.reset();
+    await loadEnvelopes();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function handleTransactionsClick(e) {
+  const btn = e.target.closest('[data-tx-action]');
+  if (!btn) return;
+
+  const action = btn.dataset.txAction;
+  const id = parseInt(btn.dataset.txId, 10);
+  const tx = allTransactions.find((item) => item.id === id);
+  if (!tx) return;
+
+  if (action === 'edit') {
+    openTxEditModal(tx);
+  } else if (action === 'delete') {
+    await handleDeleteTransaction(id, tx.recipient || 'Expense');
+  }
+}
+
+async function handleDeleteTransaction(id, label) {
+  const confirmed = await showConfirm(`Delete transaction "${label}"? The amount will be refunded to the envelope.`);
+  if (!confirmed) return;
+
+  try {
+    await api.deleteTransaction(id);
+    showToast('Transaction deleted', 'info');
+    await loadEnvelopes();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
 async function handleGridClick(e) {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
@@ -627,6 +746,9 @@ async function handleGridClick(e) {
       break;
     case 'spend':
       openSpendModal(envelope);
+      break;
+    case 'fund':
+      openFundModal(envelope);
       break;
   }
 }
@@ -745,12 +867,133 @@ async function handleSpendSubmit(e) {
   }
 }
 
+function openFundModal(envelope) {
+  DOM.fundId.value = envelope.id;
+  DOM.fundInfo.innerHTML = `
+    <span class="spend-info__title">${escapeHtml(envelope.title)}</span>
+    <span class="spend-info__balance">${formatCurrency(envelope.balance)} current</span>
+  `;
+  DOM.fundAmount.value = '';
+  DOM.fundModal.classList.add('modal-overlay--visible');
+  DOM.fundModal.setAttribute('aria-hidden', 'false');
+  DOM.fundAmount.focus();
+}
+
+function closeFundModal() {
+  DOM.fundModal.classList.remove('modal-overlay--visible');
+  DOM.fundModal.setAttribute('aria-hidden', 'true');
+  DOM.fundForm.reset();
+}
+
+async function handleFundSubmit(e) {
+  e.preventDefault();
+
+  const id = parseInt(DOM.fundId.value, 10);
+  const amount = parseFloat(DOM.fundAmount.value);
+  const envelope = envelopes.find((env) => env.id === id);
+
+  if (!envelope) {
+    showToast('Envelope not found.', 'error');
+    return;
+  }
+
+  if (isNaN(amount) || amount <= 0) {
+    showToast('Fund amount must be a positive number.', 'error');
+    return;
+  }
+
+  try {
+    await api.fund(id, amount);
+    showToast(`Added ${formatCurrency(amount)} to "${envelope.title}"`, 'success');
+    closeFundModal();
+    await loadEnvelopes();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+function openTxEditModal(tx) {
+  DOM.txEditId.value = tx.id;
+  DOM.txEditRecipient.value = tx.recipient || '';
+  DOM.txEditAmount.value = tx.amount;
+  DOM.txEditDate.value = formatDateInput(tx.date);
+  DOM.txEditEnvelope.dataset.selected = tx.envelopeId;
+  renderTransferOptions();
+  DOM.txEditEnvelope.value = String(tx.envelopeId);
+  DOM.txEditModal.classList.add('modal-overlay--visible');
+  DOM.txEditModal.setAttribute('aria-hidden', 'false');
+  DOM.txEditRecipient.focus();
+}
+
+function closeTxEditModal() {
+  DOM.txEditModal.classList.remove('modal-overlay--visible');
+  DOM.txEditModal.setAttribute('aria-hidden', 'true');
+  DOM.txEditForm.reset();
+  delete DOM.txEditEnvelope.dataset.selected;
+}
+
+async function handleTxEditSubmit(e) {
+  e.preventDefault();
+
+  const id = parseInt(DOM.txEditId.value, 10);
+  const recipient = DOM.txEditRecipient.value.trim();
+  const amount = parseFloat(DOM.txEditAmount.value);
+  const envelopeId = parseInt(DOM.txEditEnvelope.value, 10);
+  const date = parseDateInput(DOM.txEditDate.value);
+
+  if (!recipient) {
+    showToast('Payee is required.', 'error');
+    return;
+  }
+
+  if (!envelopeId) {
+    showToast('Please select a category.', 'error');
+    return;
+  }
+
+  if (isNaN(amount) || amount <= 0) {
+    showToast('Amount must be a positive number.', 'error');
+    return;
+  }
+
+  try {
+    await api.updateTransaction(id, { recipient, amount, envelopeId, date });
+    showToast('Transaction updated', 'success');
+    closeTxEditModal();
+    await loadEnvelopes();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+function getOpenModal() {
+  if (DOM.confirmModal.classList.contains('modal-overlay--visible')) return DOM.confirmModal;
+  if (DOM.txEditModal.classList.contains('modal-overlay--visible')) return DOM.txEditModal;
+  if (DOM.fundModal.classList.contains('modal-overlay--visible')) return DOM.fundModal;
+  if (DOM.editModal.classList.contains('modal-overlay--visible')) return DOM.editModal;
+  if (DOM.spendModal.classList.contains('modal-overlay--visible')) return DOM.spendModal;
+  return null;
+}
+
+function closeTopModal() {
+  if (DOM.confirmModal.classList.contains('modal-overlay--visible')) closeConfirmModal(false);
+  else if (DOM.txEditModal.classList.contains('modal-overlay--visible')) closeTxEditModal();
+  else if (DOM.fundModal.classList.contains('modal-overlay--visible')) closeFundModal();
+  else if (DOM.editModal.classList.contains('modal-overlay--visible')) closeEditModal();
+  else if (DOM.spendModal.classList.contains('modal-overlay--visible')) closeSpendModal();
+  else DOM.sidebar.classList.remove('sidebar--open');
+}
+
 function bindEvents() {
   DOM.createForm.addEventListener('submit', handleCreate);
   DOM.transferForm.addEventListener('submit', handleTransfer);
+  DOM.distributeForm.addEventListener('submit', handleDistribute);
   DOM.editForm.addEventListener('submit', handleEditSubmit);
   DOM.spendForm.addEventListener('submit', handleSpendSubmit);
+  DOM.fundForm.addEventListener('submit', handleFundSubmit);
+  DOM.txEditForm.addEventListener('submit', handleTxEditSubmit);
   DOM.envelopesGrid.addEventListener('click', handleGridClick);
+  DOM.transactionsBody.addEventListener('click', handleTransactionsClick);
 
   DOM.modalClose.addEventListener('click', closeEditModal);
   DOM.modalCancel.addEventListener('click', closeEditModal);
@@ -762,6 +1005,18 @@ function bindEvents() {
   DOM.spendCancel.addEventListener('click', closeSpendModal);
   DOM.spendModal.addEventListener('click', (e) => {
     if (e.target === DOM.spendModal) closeSpendModal();
+  });
+
+  DOM.fundModalClose.addEventListener('click', closeFundModal);
+  DOM.fundCancel.addEventListener('click', closeFundModal);
+  DOM.fundModal.addEventListener('click', (e) => {
+    if (e.target === DOM.fundModal) closeFundModal();
+  });
+
+  DOM.txEditModalClose.addEventListener('click', closeTxEditModal);
+  DOM.txEditCancel.addEventListener('click', closeTxEditModal);
+  DOM.txEditModal.addEventListener('click', (e) => {
+    if (e.target === DOM.txEditModal) closeTxEditModal();
   });
 
   DOM.confirmOk.addEventListener('click', () => closeConfirmModal(true));
@@ -783,25 +1038,12 @@ function bindEvents() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (DOM.confirmModal.classList.contains('modal-overlay--visible')) {
-        closeConfirmModal(false);
-      } else if (DOM.editModal.classList.contains('modal-overlay--visible')) {
-        closeEditModal();
-      } else if (DOM.spendModal.classList.contains('modal-overlay--visible')) {
-        closeSpendModal();
-      } else {
-        DOM.sidebar.classList.remove('sidebar--open');
-      }
+      closeTopModal();
     }
 
     if (e.key === 'Tab') {
-      if (DOM.confirmModal.classList.contains('modal-overlay--visible')) {
-        trapFocus(DOM.confirmModal, e);
-      } else if (DOM.editModal.classList.contains('modal-overlay--visible')) {
-        trapFocus(DOM.editModal, e);
-      } else if (DOM.spendModal.classList.contains('modal-overlay--visible')) {
-        trapFocus(DOM.spendModal, e);
-      }
+      const openModal = getOpenModal();
+      if (openModal) trapFocus(openModal, e);
     }
   });
 }
