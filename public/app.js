@@ -1,111 +1,103 @@
 /**
  * Envelope Budget — Frontend Application
  *
- * Handles all client-side logic: fetching envelopes from the REST API,
- * rendering HIG-styled cards, managing modals (edit, spend, confirm),
- * processing forms, displaying toast notifications, drawing the
- * doughnut chart, toggling themes, and showing spending history.
- *
- * Zero external dependencies — pure vanilla JavaScript.
+ * Linear.app-inspired dark UI. Handles API orchestration for /envelopes
+ * and /transactions, view navigation, modals, chart, and toasts.
  */
 
 'use strict';
-
-// ─── Configuration ─────────────────────────────────────────────────────────────
 
 const API_BASE = '/envelopes';
 const TRANSACTIONS_BASE = '/transactions';
 
 const CHART_COLORS = [
-  '#007AFF', '#34C759', '#FF9500', '#AF52DE',
-  '#FF2D55', '#5AC8FA', '#FFCC00', '#5856D6',
+  '#5e6ad2', '#7a7fad', '#828fff', '#62666d',
+  '#8a8f98', '#5e69d1', '#34343a', '#3e3e44',
 ];
 
-// ─── DOM References ────────────────────────────────────────────────────────────
-
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => document.querySelectorAll(sel);
-
-const DOM = {
-  // Header stats
-  statTotalBudget:   $('#stat-total-budget'),
-  statEnvelopeCount: $('#stat-envelope-count'),
-  statTotalBalance:  $('#stat-total-balance'),
-
-  // Theme toggle
-  themeToggle: $('#theme-toggle'),
-
-  // Create form
-  createForm:   $('#create-form'),
-  createTitle:  $('#create-title'),
-  createBudget: $('#create-budget'),
-
-  // Transfer form
-  transferForm:   $('#transfer-form'),
-  transferFrom:   $('#transfer-from'),
-  transferTo:     $('#transfer-to'),
-  transferAmount: $('#transfer-amount'),
-
-  // Envelope grid
-  envelopesGrid: $('#envelopes-grid'),
-  emptyState:    $('#empty-state'),
-
-  // Edit modal
-  editModal:  $('#edit-modal'),
-  editForm:   $('#edit-form'),
-  editId:     $('#edit-id'),
-  editTitle:  $('#edit-title'),
-  editBudget: $('#edit-budget'),
-  modalClose: $('#modal-close'),
-  modalCancel: $('#modal-cancel'),
-
-  // Spend modal
-  spendModal:      $('#spend-modal'),
-  spendForm:       $('#spend-form'),
-  spendId:         $('#spend-id'),
-  spendInfo:       $('#spend-info'),
-  spendAmount:     $('#spend-amount'),
-  spendNote:       $('#spend-note'),
-  spendModalClose: $('#spend-modal-close'),
-  spendCancel:     $('#spend-cancel'),
-
-  // Confirm modal
-  confirmModal:      $('#confirm-modal'),
-  confirmModalMsg:   $('#confirm-modal-msg'),
-  confirmModalClose: $('#confirm-modal-close'),
-  confirmCancel:     $('#confirm-cancel'),
-  confirmOk:         $('#confirm-ok'),
-
-  // Chart
-  chartCanvas: $('#budget-chart'),
-  chartLegend: $('#chart-legend'),
-  chartEmpty:  $('#chart-empty'),
-
-  // Toast
-  toastContainer: $('#toast-container'),
+const VIEW_TITLES = {
+  overview: 'Overview',
+  envelopes: 'Envelopes',
+  transactions: 'Activity',
+  actions: 'New & Transfer',
 };
 
-// ─── State ─────────────────────────────────────────────────────────────────────
+const ICONS = {
+  edit: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 2l3 3-8 8H3v-3l8-8z"/></svg>',
+  delete: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M5 4V3h6v1M6 7v5M10 7v5M4 4l1 9h6l1-9"/></svg>',
+  spend: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10"/></svg>',
+};
+
+const $ = (sel) => document.querySelector(sel);
+
+const DOM = {
+  statTotalBudget:      $('#stat-total-budget'),
+  statEnvelopeCount:    $('#stat-envelope-count'),
+  statTotalBalance:     $('#stat-total-balance'),
+  sidebarTotalBudget:   $('#sidebar-total-budget'),
+  sidebarTotalBalance:  $('#sidebar-total-balance'),
+  topbarHeading:        $('#topbar-heading'),
+  sidebar:              $('#sidebar'),
+  sidebarToggle:        $('#sidebar-toggle'),
+  navItems:             document.querySelectorAll('.nav-item'),
+  views:                document.querySelectorAll('.view'),
+  gotoCreateBtn:        $('#goto-create-btn'),
+  createForm:           $('#create-form'),
+  createTitle:          $('#create-title'),
+  createBudget:         $('#create-budget'),
+  transferForm:         $('#transfer-form'),
+  transferFrom:         $('#transfer-from'),
+  transferTo:           $('#transfer-to'),
+  transferAmount:       $('#transfer-amount'),
+  envelopesGrid:        $('#envelopes-grid'),
+  envelopesTable:       $('#envelopes-table'),
+  envelopesCountLabel:  $('#envelopes-count-label'),
+  emptyState:           $('#empty-state'),
+  transactionsBody:     $('#transactions-body'),
+  transactionsCountLabel: $('#transactions-count-label'),
+  recentTransactionsBody: $('#recent-transactions-body'),
+  editModal:            $('#edit-modal'),
+  editForm:             $('#edit-form'),
+  editId:               $('#edit-id'),
+  editTitle:            $('#edit-title'),
+  editBudget:           $('#edit-budget'),
+  modalClose:           $('#modal-close'),
+  modalCancel:          $('#modal-cancel'),
+  spendModal:           $('#spend-modal'),
+  spendForm:            $('#spend-form'),
+  spendId:              $('#spend-id'),
+  spendInfo:            $('#spend-info'),
+  spendAmount:          $('#spend-amount'),
+  spendNote:            $('#spend-note'),
+  spendModalClose:      $('#spend-modal-close'),
+  spendCancel:          $('#spend-cancel'),
+  confirmModal:         $('#confirm-modal'),
+  confirmModalMsg:      $('#confirm-modal-msg'),
+  confirmModalClose:    $('#confirm-modal-close'),
+  confirmCancel:        $('#confirm-cancel'),
+  confirmOk:            $('#confirm-ok'),
+  chartCanvas:          $('#budget-chart'),
+  chartLegend:          $('#chart-legend'),
+  chartEmpty:           $('#chart-empty'),
+  toastContainer:       $('#toast-container'),
+};
 
 let envelopes = [];
 let totalBudget = 0;
-/** @type {Record<number, Object[]>} Transactions grouped by envelopeId */
+let allTransactions = [];
+/** @type {Record<number, Object[]>} */
 let transactionsByEnvelope = {};
-let confirmResolve = null; // For the custom confirm modal promise
+let confirmResolve = null;
+let activeView = 'overview';
 
-// ─── API Layer ─────────────────────────────────────────────────────────────────
+// ─── API Layer ───────────────────────────────────────────────────────────────
 
-/**
- * Generic fetch wrapper that returns parsed JSON.
- * Throws with the server's error message on non-ok responses.
- */
 async function apiFetch(url, options = {}) {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
 
-  // 204 No Content
   if (res.status === 204) return null;
 
   const json = await res.json();
@@ -118,35 +110,29 @@ async function apiFetch(url, options = {}) {
 }
 
 const api = {
-  /** Fetch all envelopes and the global total budget. */
   getAll: () => apiFetch(API_BASE),
 
-  /** Create a new envelope. */
   create: (title, budget) =>
     apiFetch(API_BASE, {
       method: 'POST',
       body: JSON.stringify({ title, budget }),
     }),
 
-  /** Update an envelope by ID. */
   update: (id, updates) =>
     apiFetch(`${API_BASE}/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     }),
 
-  /** Delete an envelope by ID. */
   delete: (id) =>
     apiFetch(`${API_BASE}/${id}`, { method: 'DELETE' }),
 
-  /** Transfer funds between two envelopes. */
   transfer: (fromId, toId, amount) =>
     apiFetch(`${API_BASE}/transfer/${fromId}/${toId}`, {
       method: 'POST',
       body: JSON.stringify({ amount }),
     }),
 
-  /** Record a transaction against an envelope (deducts balance). */
   spend: (envelopeId, amount, recipient) =>
     apiFetch(TRANSACTIONS_BASE, {
       method: 'POST',
@@ -158,26 +144,18 @@ const api = {
       }),
     }),
 
-  /** Fetch all transactions from the API. */
   getAllTransactions: () => apiFetch(TRANSACTIONS_BASE),
 
-  /** Get spending history for an envelope. */
   getHistory: async (envelopeId) => {
     const cached = transactionsByEnvelope[envelopeId];
     if (cached) return cached;
-
     const all = await api.getAllTransactions();
     return all.filter((t) => t.envelopeId === envelopeId);
   },
 };
 
-// ─── Formatters ────────────────────────────────────────────────────────────────
+// ─── Formatters ──────────────────────────────────────────────────────────────
 
-/**
- * Format a number as a USD currency string.
- * @param {number} n
- * @returns {string}
- */
 function formatCurrency(n) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -186,11 +164,6 @@ function formatCurrency(n) {
   }).format(n);
 }
 
-/**
- * Format an ISO-8601 date string for display.
- * @param {string} iso
- * @returns {string}
- */
 function formatDate(iso) {
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
@@ -200,14 +173,26 @@ function formatDate(iso) {
   }).format(new Date(iso));
 }
 
-// ─── Toast Notifications ───────────────────────────────────────────────────────
+function formatDateShort(iso) {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(iso));
+}
 
-/**
- * Show a temporary toast notification.
- * @param {string} message
- * @param {'success'|'error'|'info'} type
- * @param {number} duration – ms before auto-dismiss
- */
+function escapeHtml(str) {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  return str.replace(/[&<>"']/g, (c) => map[c]);
+}
+
+function getEnvelopeTitle(envelopeId) {
+  const env = envelopes.find((e) => e.id === envelopeId);
+  return env ? env.title : 'Unknown';
+}
+
+// ─── Toast ───────────────────────────────────────────────────────────────────
+
 function showToast(message, type = 'info', duration = 3500) {
   const toast = document.createElement('div');
   toast.className = `toast toast--${type}`;
@@ -215,42 +200,30 @@ function showToast(message, type = 'info', duration = 3500) {
   DOM.toastContainer.appendChild(toast);
 
   setTimeout(() => {
-    toast.style.animation = `toastOut 280ms cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards`;
+    toast.style.animation = 'toastOut 180ms cubic-bezier(0.22, 1, 0.36, 1) forwards';
     toast.addEventListener('animationend', () => toast.remove());
   }, duration);
 }
 
-// ─── Theme Toggle ──────────────────────────────────────────────────────────────
+// ─── Navigation ──────────────────────────────────────────────────────────────
 
-const THEME_KEY = 'envelope-budget-theme';
-const THEME_ICONS = { auto: '🌗', light: '☀️', dark: '🌙' };
-const THEME_CYCLE = ['auto', 'light', 'dark'];
+function switchView(viewId) {
+  activeView = viewId;
 
-function initTheme() {
-  const saved = localStorage.getItem(THEME_KEY) || 'auto';
-  applyTheme(saved);
+  DOM.navItems.forEach((item) => {
+    item.classList.toggle('nav-item--active', item.dataset.view === viewId);
+  });
+
+  DOM.views.forEach((view) => {
+    view.classList.toggle('view--active', view.dataset.view === viewId);
+  });
+
+  DOM.topbarHeading.textContent = VIEW_TITLES[viewId] || 'Overview';
+  DOM.sidebar.classList.remove('sidebar--open');
 }
 
-function applyTheme(theme) {
-  document.documentElement.setAttribute('data-theme', theme);
-  DOM.themeToggle.textContent = THEME_ICONS[theme] || '🌗';
-  DOM.themeToggle.title = `Theme: ${theme.charAt(0).toUpperCase() + theme.slice(1)}`;
-  localStorage.setItem(THEME_KEY, theme);
-}
+// ─── Confirm Modal ───────────────────────────────────────────────────────────
 
-function cycleTheme() {
-  const current = document.documentElement.getAttribute('data-theme') || 'auto';
-  const nextIdx = (THEME_CYCLE.indexOf(current) + 1) % THEME_CYCLE.length;
-  applyTheme(THEME_CYCLE[nextIdx]);
-}
-
-// ─── Custom Confirm Modal ──────────────────────────────────────────────────────
-
-/**
- * Show a custom confirmation dialog. Returns a Promise<boolean>.
- * @param {string} message
- * @returns {Promise<boolean>}
- */
 function showConfirm(message) {
   DOM.confirmModalMsg.textContent = message;
   DOM.confirmModal.classList.add('modal-overlay--visible');
@@ -271,13 +244,6 @@ function closeConfirmModal(result) {
   }
 }
 
-// ─── Focus Trap ────────────────────────────────────────────────────────────────
-
-/**
- * Trap Tab focus within a container element.
- * @param {HTMLElement} container
- * @param {KeyboardEvent} e
- */
 function trapFocus(container, e) {
   if (e.key !== 'Tab') return;
 
@@ -294,22 +260,14 @@ function trapFocus(container, e) {
       e.preventDefault();
       last.focus();
     }
-  } else {
-    if (document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
+  } else if (document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
   }
 }
 
-// ─── Rendering ─────────────────────────────────────────────────────────────────
+// ─── Health & Rendering ──────────────────────────────────────────────────────
 
-/**
- * Determine the health status of an envelope based on spending ratio.
- * @param {number} balance
- * @param {number} budget
- * @returns {'healthy'|'warning'|'danger'}
- */
 function getHealth(balance, budget) {
   if (budget === 0) return 'healthy';
   const ratio = balance / budget;
@@ -318,163 +276,165 @@ function getHealth(balance, budget) {
   return 'danger';
 }
 
-/**
- * Build the HTML for a single envelope card.
- * @param {Object} env
- * @returns {string}
- */
-function renderEnvelopeCard(env) {
+function renderEnvelopeRow(env) {
   const pct = env.budget > 0
     ? Math.min((env.balance / env.budget) * 100, 100)
     : 100;
   const health = getHealth(env.balance, env.budget);
-  const historyCount = (transactionsByEnvelope[env.id] || []).length;
 
   return `
-    <article class="envelope-card" data-id="${env.id}">
-      <div class="envelope-card__header">
-        <h3 class="envelope-card__title">${escapeHtml(env.title)}</h3>
-        <div class="envelope-card__actions">
-          <button class="icon-btn" data-action="edit" data-id="${env.id}" title="Edit" aria-label="Edit ${escapeHtml(env.title)}">✏️</button>
-          <button class="icon-btn icon-btn--danger" data-action="delete" data-id="${env.id}" title="Delete" aria-label="Delete ${escapeHtml(env.title)}">🗑️</button>
+    <tr class="envelope-row" data-id="${env.id}">
+      <td>
+        <div class="data-table__category">${escapeHtml(env.title)}</div>
+        <div class="data-table__meta">Updated ${formatDate(env.updatedAt)}</div>
+      </td>
+      <td>
+        <span class="data-table__mono data-table__mono--${health}">${formatCurrency(env.balance)}</span>
+      </td>
+      <td>
+        <span class="data-table__mono">${formatCurrency(env.budget)}</span>
+      </td>
+      <td>
+        <div class="progress">
+          <div class="progress__track">
+            <div class="progress__fill progress__fill--${health}" style="width:${pct}%"></div>
+          </div>
+          <span class="progress__pct">${pct.toFixed(0)}%</span>
         </div>
-      </div>
-
-      <div class="envelope-card__meter">
-        <div class="meter__bar">
-          <div class="meter__fill meter__fill--${health}" style="width: ${pct}%"></div>
+      </td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn icon-btn--primary" data-action="spend" data-id="${env.id}" title="Record spending" aria-label="Spend from ${escapeHtml(env.title)}">${ICONS.spend}</button>
+          <button class="icon-btn" data-action="edit" data-id="${env.id}" title="Edit" aria-label="Edit ${escapeHtml(env.title)}">${ICONS.edit}</button>
+          <button class="icon-btn icon-btn--danger" data-action="delete" data-id="${env.id}" title="Delete" aria-label="Delete ${escapeHtml(env.title)}">${ICONS.delete}</button>
         </div>
-        <div class="meter__labels">
-          <span class="meter__balance meter__balance--${health}">${formatCurrency(env.balance)}</span>
-          <span class="meter__budget">of ${formatCurrency(env.budget)}</span>
-        </div>
-      </div>
-
-      <div class="envelope-card__btn-row">
-        <button class="envelope-card__spend-btn" data-action="spend" data-id="${env.id}">
-          💸 Spend
-        </button>
-        <button class="envelope-card__history-btn" data-action="history" data-id="${env.id}">
-          📋 History${historyCount > 0 ? ` (${historyCount})` : ''}
-        </button>
-      </div>
-
-      <div class="history-panel" id="history-panel-${env.id}">
-        <div class="history-panel__inner" id="history-inner-${env.id}">
-          <!-- Filled by toggleHistory -->
-        </div>
-      </div>
-
-      <span class="envelope-card__meta">Updated ${formatDate(env.updatedAt)}</span>
-    </article>
+      </td>
+    </tr>
   `;
 }
 
-/**
- * Minimal HTML entity escaping for XSS prevention.
- * @param {string} str
- * @returns {string}
- */
-function escapeHtml(str) {
-  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-  return str.replace(/[&<>"']/g, (c) => map[c]);
+function renderTransactionRow(tx, showBadge = true) {
+  const category = getEnvelopeTitle(tx.envelopeId);
+  return `
+    <tr>
+      <td>
+        <div class="data-table__category">${escapeHtml(tx.recipient || 'Expense')}</div>
+      </td>
+      <td>
+        ${showBadge ? `<span class="badge badge--category">${escapeHtml(category)}</span>` : escapeHtml(category)}
+      </td>
+      <td>
+        <span class="data-table__meta">${formatDateShort(tx.date)}</span>
+      </td>
+      <td>
+        <span class="data-table__mono data-table__mono--danger">-${formatCurrency(tx.amount)}</span>
+      </td>
+    </tr>
+  `;
 }
 
-/**
- * Re-render the entire envelopes grid from the current state.
- */
 function renderEnvelopes() {
-  if (envelopes.length === 0) {
-    DOM.envelopesGrid.innerHTML = '';
-    DOM.emptyState.classList.add('empty-state--visible');
+  const hasEnvelopes = envelopes.length > 0;
+
+  DOM.envelopesCountLabel.textContent = `${envelopes.length} categor${envelopes.length === 1 ? 'y' : 'ies'}`;
+  DOM.envelopesTable.style.display = hasEnvelopes ? '' : 'none';
+  DOM.emptyState.classList.toggle('empty-state--visible', !hasEnvelopes);
+
+  if (hasEnvelopes) {
+    DOM.envelopesGrid.innerHTML = envelopes.map(renderEnvelopeRow).join('');
   } else {
-    DOM.emptyState.classList.remove('empty-state--visible');
-    DOM.envelopesGrid.innerHTML = envelopes.map(renderEnvelopeCard).join('');
+    DOM.envelopesGrid.innerHTML = '';
   }
 }
 
-/**
- * Update the translucent header stats with animation.
- */
-function renderStats() {
-  animateStat(DOM.statTotalBudget, formatCurrency(totalBudget));
-  animateStat(DOM.statEnvelopeCount, String(envelopes.length));
+function renderTransactions() {
+  const sorted = allTransactions.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+  DOM.transactionsCountLabel.textContent = `${sorted.length} entr${sorted.length === 1 ? 'y' : 'ies'}`;
 
-  const totalBalance = envelopes.reduce((sum, e) => sum + e.balance, 0);
-  animateStat(DOM.statTotalBalance, formatCurrency(totalBalance));
+  if (sorted.length === 0) {
+    DOM.transactionsBody.innerHTML =
+      '<tr><td colspan="4" style="text-align:center;color:var(--color-ink-tertiary);padding:24px;">No transactions yet</td></tr>';
+  } else {
+    DOM.transactionsBody.innerHTML = sorted.map((tx) => renderTransactionRow(tx)).join('');
+  }
 
-  // Colour-code total balance
-  const ratio = totalBudget > 0 ? totalBalance / totalBudget : 1;
-  DOM.statTotalBalance.className = 'stat__value';
-  if (ratio > 0.5) DOM.statTotalBalance.classList.add('stat__value--positive');
-  else if (ratio > 0.2) DOM.statTotalBalance.classList.add('stat__value--warning');
-  else DOM.statTotalBalance.classList.add('stat__value--danger');
+  const recent = sorted.slice(0, 5);
+  if (recent.length === 0) {
+    DOM.recentTransactionsBody.innerHTML =
+      '<tr><td colspan="4" style="text-align:center;color:var(--color-ink-tertiary);padding:24px;">No transactions yet</td></tr>';
+  } else {
+    DOM.recentTransactionsBody.innerHTML = recent.map((tx) => renderTransactionRow(tx)).join('');
+  }
 }
 
-/**
- * Animate a stat value change with a pulse effect.
- */
-function animateStat(el, newValue) {
+function animateStat(el, newValue, className = 'stat-card__value') {
   if (el.textContent !== newValue) {
     el.textContent = newValue;
-    el.classList.remove('stat__value--animating');
-    // Force reflow
+    el.classList.remove(`${className}--animating`);
     void el.offsetWidth;
-    el.classList.add('stat__value--animating');
+    el.classList.add(`${className}--animating`);
     el.addEventListener('animationend', () => {
-      el.classList.remove('stat__value--animating');
+      el.classList.remove(`${className}--animating`);
     }, { once: true });
   }
 }
 
-/**
- * Populate the transfer form's <select> dropdowns.
- */
+function renderStats() {
+  const totalBalance = envelopes.reduce((sum, e) => sum + e.balance, 0);
+  const budgetStr = formatCurrency(totalBudget);
+  const balanceStr = formatCurrency(totalBalance);
+  const countStr = String(envelopes.length);
+
+  animateStat(DOM.statTotalBudget, budgetStr);
+  animateStat(DOM.statEnvelopeCount, countStr);
+  animateStat(DOM.statTotalBalance, balanceStr);
+  animateStat(DOM.sidebarTotalBudget, budgetStr);
+  animateStat(DOM.sidebarTotalBalance, balanceStr);
+
+  const ratio = totalBudget > 0 ? totalBalance / totalBudget : 1;
+  const healthClass = ratio > 0.5 ? 'positive' : ratio > 0.2 ? 'warning' : 'danger';
+
+  DOM.statTotalBalance.className = `stat-card__value stat-card__value--${healthClass}`;
+  DOM.sidebarTotalBalance.className = `sidebar-stat__value sidebar-stat__value--${healthClass}`;
+}
+
 function renderTransferOptions() {
-  const buildOptions = (selectedId) => {
+  const buildOptions = () => {
     let html = '<option value="">Select envelope…</option>';
     for (const env of envelopes) {
-      const selected = env.id === selectedId ? ' selected' : '';
-      html += `<option value="${env.id}"${selected}>${escapeHtml(env.title)} (${formatCurrency(env.balance)})</option>`;
+      html += `<option value="${env.id}">${escapeHtml(env.title)} (${formatCurrency(env.balance)})</option>`;
     }
     return html;
   };
 
-  DOM.transferFrom.innerHTML = buildOptions(null);
-  DOM.transferTo.innerHTML = buildOptions(null);
+  DOM.transferFrom.innerHTML = buildOptions();
+  DOM.transferTo.innerHTML = buildOptions();
 }
 
-/**
- * Full UI refresh — called after every state-changing operation.
- */
 function refreshUI() {
   renderEnvelopes();
   renderStats();
   renderTransferOptions();
+  renderTransactions();
   renderChart();
 }
 
-// ─── Doughnut Chart ────────────────────────────────────────────────────────────
+// ─── Chart ───────────────────────────────────────────────────────────────────
 
-/**
- * Render an animated doughnut chart on the canvas.
- */
 function renderChart() {
   const canvas = DOM.chartCanvas;
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
-  const size = 200;
+  const size = 180;
 
   canvas.width = size * dpr;
   canvas.height = size * dpr;
   canvas.style.width = size + 'px';
   canvas.style.height = size + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
   ctx.clearRect(0, 0, size, size);
 
-  const legendItems = DOM.chartLegend.querySelectorAll('.legend-item');
-  legendItems.forEach((item) => item.remove());
+  DOM.chartLegend.querySelectorAll('.legend-item').forEach((item) => item.remove());
 
   if (envelopes.length === 0) {
     DOM.chartEmpty.style.display = 'block';
@@ -486,7 +446,7 @@ function renderChart() {
 
   const cx = size / 2;
   const cy = size / 2;
-  const outerR = size / 2 - 8;
+  const outerR = size / 2 - 6;
   const innerR = outerR * 0.62;
   const totalBalance = envelopes.reduce((s, e) => s + e.balance, 0);
 
@@ -496,17 +456,14 @@ function renderChart() {
     return;
   }
 
-  let startAngle = -Math.PI / 2; // Start from top
+  let startAngle = -Math.PI / 2;
 
   envelopes.forEach((env, i) => {
     const sliceAngle = (env.balance / totalBalance) * Math.PI * 2;
     const color = CHART_COLORS[i % CHART_COLORS.length];
 
     ctx.beginPath();
-    ctx.moveTo(
-      cx + innerR * Math.cos(startAngle),
-      cy + innerR * Math.sin(startAngle)
-    );
+    ctx.moveTo(cx + innerR * Math.cos(startAngle), cy + innerR * Math.sin(startAngle));
     ctx.arc(cx, cy, outerR, startAngle, startAngle + sliceAngle);
     ctx.arc(cx, cy, innerR, startAngle + sliceAngle, startAngle, true);
     ctx.closePath();
@@ -516,15 +473,15 @@ function renderChart() {
     startAngle += sliceAngle;
   });
 
-  // Centre label
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-text-primary').trim() || '#000';
-  ctx.font = `bold 18px Inter, -apple-system, sans-serif`;
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-ink').trim() || '#f7f8f8';
+  ctx.font = '500 15px JetBrains Mono, ui-monospace, monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(formatCurrency(totalBalance), cx, cy - 8);
-  ctx.font = `500 11px Inter, -apple-system, sans-serif`;
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-text-secondary').trim() || '#666';
-  ctx.fillText('TOTAL BALANCE', cx, cy + 10);
+  ctx.fillText(formatCurrency(totalBalance), cx, cy - 6);
+
+  ctx.font = '500 10px Inter, sans-serif';
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-ink-subtle').trim() || '#8a8f98';
+  ctx.fillText('TOTAL', cx, cy + 10);
 
   renderLegendItems(envelopes, totalBalance);
 }
@@ -532,24 +489,19 @@ function renderChart() {
 function drawEmptyDoughnut(ctx, size) {
   const cx = size / 2;
   const cy = size / 2;
-  const outerR = size / 2 - 8;
+  const outerR = size / 2 - 6;
   const innerR = outerR * 0.62;
 
   ctx.beginPath();
   ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
   ctx.arc(cx, cy, innerR, Math.PI * 2, 0, true);
   ctx.closePath();
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-separator').trim() || 'rgba(60,60,67,0.12)';
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-hairline').trim() || '#23252a';
   ctx.fill();
 }
 
 function renderLegendItems(envs, totalBalance) {
-  const titleEl = DOM.chartLegend.querySelector('.chart-card__legend-title');
-  const emptyEl = DOM.chartEmpty;
-
-  // Remove old legends
-  const oldItems = DOM.chartLegend.querySelectorAll('.legend-item');
-  oldItems.forEach((item) => item.remove());
+  DOM.chartLegend.querySelectorAll('.legend-item').forEach((item) => item.remove());
 
   envs.forEach((env, i) => {
     const color = CHART_COLORS[i % CHART_COLORS.length];
@@ -559,36 +511,31 @@ function renderLegendItems(envs, totalBalance) {
     item.innerHTML = `
       <span class="legend-swatch" style="background:${color}"></span>
       <span class="legend-label">${escapeHtml(env.title)}</span>
-      <span class="legend-value">${formatCurrency(env.balance)} (${pct}%)</span>
+      <span class="legend-value">${formatCurrency(env.balance)} · ${pct}%</span>
     `;
     DOM.chartLegend.appendChild(item);
   });
 }
 
-// ─── Data Fetching ─────────────────────────────────────────────────────────────
+// ─── Data Loading ────────────────────────────────────────────────────────────
 
-/**
- * Fetch all transactions and group them by envelopeId for history counts.
- */
 async function loadTransactions() {
   try {
-    const all = await api.getAllTransactions();
+    allTransactions = await api.getAllTransactions();
     transactionsByEnvelope = {};
-    for (const transaction of all) {
-      if (!transactionsByEnvelope[transaction.envelopeId]) {
-        transactionsByEnvelope[transaction.envelopeId] = [];
+    for (const tx of allTransactions) {
+      if (!transactionsByEnvelope[tx.envelopeId]) {
+        transactionsByEnvelope[tx.envelopeId] = [];
       }
-      transactionsByEnvelope[transaction.envelopeId].push(transaction);
+      transactionsByEnvelope[tx.envelopeId].push(tx);
     }
   } catch (err) {
+    allTransactions = [];
     transactionsByEnvelope = {};
     showToast(err.message, 'error');
   }
 }
 
-/**
- * Fetch all envelopes from the API and refresh the UI.
- */
 async function loadEnvelopes() {
   try {
     const data = await api.getAll();
@@ -601,11 +548,8 @@ async function loadEnvelopes() {
   }
 }
 
-// ─── Event Handlers ────────────────────────────────────────────────────────────
+// ─── Event Handlers ──────────────────────────────────────────────────────────
 
-/**
- * Handle creating a new envelope.
- */
 async function handleCreate(e) {
   e.preventDefault();
 
@@ -624,17 +568,15 @@ async function handleCreate(e) {
 
   try {
     await api.create(title, budget);
-    showToast(`"${title}" envelope created!`, 'success');
+    showToast(`"${title}" envelope created`, 'success');
     DOM.createForm.reset();
     await loadEnvelopes();
+    switchView('envelopes');
   } catch (err) {
     showToast(err.message, 'error');
   }
 }
 
-/**
- * Handle transferring funds between envelopes.
- */
 async function handleTransfer(e) {
   e.preventDefault();
 
@@ -659,7 +601,7 @@ async function handleTransfer(e) {
 
   try {
     await api.transfer(fromId, toId, amount);
-    showToast(`Transferred ${formatCurrency(amount)} successfully!`, 'success');
+    showToast(`Transferred ${formatCurrency(amount)}`, 'success');
     DOM.transferForm.reset();
     await loadEnvelopes();
   } catch (err) {
@@ -667,9 +609,6 @@ async function handleTransfer(e) {
   }
 }
 
-/**
- * Handle clicks within the envelopes grid (edit, delete, spend, history).
- */
 async function handleGridClick(e) {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
@@ -683,88 +622,33 @@ async function handleGridClick(e) {
     case 'edit':
       openEditModal(envelope);
       break;
-
     case 'delete':
-      await handleDelete(id, envelope.title, btn.closest('.envelope-card'));
+      await handleDelete(id, envelope.title, btn.closest('.envelope-row'));
       break;
-
     case 'spend':
       openSpendModal(envelope);
-      break;
-
-    case 'history':
-      await toggleHistory(id);
       break;
   }
 }
 
-/**
- * Delete an envelope with animation — uses custom confirm modal.
- */
-async function handleDelete(id, title, cardEl) {
+async function handleDelete(id, title, rowEl) {
   const confirmed = await showConfirm(`Delete "${title}"? All spending history will be lost.`);
   if (!confirmed) return;
 
   try {
-    // Play exit animation
-    if (cardEl) {
-      cardEl.classList.add('envelope-card--removing');
-      await new Promise((r) => setTimeout(r, 280));
+    if (rowEl) {
+      rowEl.classList.add('envelope-row--removing');
+      await new Promise((r) => setTimeout(r, 180));
     }
 
     await api.delete(id);
-    showToast(`"${title}" deleted.`, 'info');
+    showToast(`"${title}" deleted`, 'info');
     await loadEnvelopes();
   } catch (err) {
-    if (cardEl) cardEl.classList.remove('envelope-card--removing');
+    if (rowEl) rowEl.classList.remove('envelope-row--removing');
     showToast(err.message, 'error');
   }
 }
-
-// ─── Spending History ──────────────────────────────────────────────────────────
-
-/**
- * Toggle the spending history panel for an envelope.
- */
-async function toggleHistory(id) {
-  const panel = $(`#history-panel-${id}`);
-  if (!panel) return;
-
-  if (panel.classList.contains('history-panel--open')) {
-    panel.classList.remove('history-panel--open');
-    return;
-  }
-
-  // Fetch history
-  try {
-    const history = await api.getHistory(id);
-    const inner = $(`#history-inner-${id}`);
-
-    if (!history || history.length === 0) {
-      inner.innerHTML = '<p class="history-panel__empty">No spending recorded yet.</p>';
-    } else {
-      inner.innerHTML = history
-        .slice()
-        .reverse()
-        .map((event) => `
-          <div class="history-item">
-            <div class="history-item__info">
-              <span class="history-item__note">${escapeHtml(event.recipient || 'Expense')}</span>
-              <span class="history-item__time">${formatDate(event.date)}</span>
-            </div>
-            <span class="history-item__amount">-${formatCurrency(event.amount)}</span>
-          </div>
-        `)
-        .join('');
-    }
-
-    panel.classList.add('history-panel--open');
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
-
-// ─── Edit Modal ────────────────────────────────────────────────────────────────
 
 function openEditModal(envelope) {
   DOM.editId.value = envelope.id;
@@ -800,15 +684,13 @@ async function handleEditSubmit(e) {
 
   try {
     await api.update(id, { title, budget });
-    showToast('Envelope updated!', 'success');
+    showToast('Envelope updated', 'success');
     closeEditModal();
     await loadEnvelopes();
   } catch (err) {
     showToast(err.message, 'error');
   }
 }
-
-// ─── Spend Modal ───────────────────────────────────────────────────────────────
 
 function openSpendModal(envelope) {
   DOM.spendId.value = envelope.id;
@@ -849,7 +731,7 @@ async function handleSpendSubmit(e) {
   }
 
   if (amount > parseFloat(envelope.balance)) {
-    showToast('Insufficient funds! Cannot overdraft.', 'error');
+    showToast('Insufficient funds — cannot overdraft.', 'error');
     return;
   }
 
@@ -863,33 +745,25 @@ async function handleSpendSubmit(e) {
   }
 }
 
-// ─── Event Binding ─────────────────────────────────────────────────────────────
-
 function bindEvents() {
-  // Forms
   DOM.createForm.addEventListener('submit', handleCreate);
   DOM.transferForm.addEventListener('submit', handleTransfer);
   DOM.editForm.addEventListener('submit', handleEditSubmit);
   DOM.spendForm.addEventListener('submit', handleSpendSubmit);
-
-  // Grid delegation
   DOM.envelopesGrid.addEventListener('click', handleGridClick);
 
-  // Edit modal close
   DOM.modalClose.addEventListener('click', closeEditModal);
   DOM.modalCancel.addEventListener('click', closeEditModal);
   DOM.editModal.addEventListener('click', (e) => {
     if (e.target === DOM.editModal) closeEditModal();
   });
 
-  // Spend modal close
   DOM.spendModalClose.addEventListener('click', closeSpendModal);
   DOM.spendCancel.addEventListener('click', closeSpendModal);
   DOM.spendModal.addEventListener('click', (e) => {
     if (e.target === DOM.spendModal) closeSpendModal();
   });
 
-  // Confirm modal
   DOM.confirmOk.addEventListener('click', () => closeConfirmModal(true));
   DOM.confirmCancel.addEventListener('click', () => closeConfirmModal(false));
   DOM.confirmModalClose.addEventListener('click', () => closeConfirmModal(false));
@@ -897,10 +771,16 @@ function bindEvents() {
     if (e.target === DOM.confirmModal) closeConfirmModal(false);
   });
 
-  // Theme toggle
-  DOM.themeToggle.addEventListener('click', cycleTheme);
+  DOM.navItems.forEach((item) => {
+    item.addEventListener('click', () => switchView(item.dataset.view));
+  });
 
-  // Keyboard: Escape closes modals, Tab is trapped within open modals
+  DOM.gotoCreateBtn.addEventListener('click', () => switchView('actions'));
+
+  DOM.sidebarToggle.addEventListener('click', () => {
+    DOM.sidebar.classList.toggle('sidebar--open');
+  });
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (DOM.confirmModal.classList.contains('modal-overlay--visible')) {
@@ -909,10 +789,11 @@ function bindEvents() {
         closeEditModal();
       } else if (DOM.spendModal.classList.contains('modal-overlay--visible')) {
         closeSpendModal();
+      } else {
+        DOM.sidebar.classList.remove('sidebar--open');
       }
     }
 
-    // Focus trap for open modals
     if (e.key === 'Tab') {
       if (DOM.confirmModal.classList.contains('modal-overlay--visible')) {
         trapFocus(DOM.confirmModal, e);
@@ -925,10 +806,7 @@ function bindEvents() {
   });
 }
 
-// ─── Initialization ────────────────────────────────────────────────────────────
-
 document.addEventListener('DOMContentLoaded', () => {
-  initTheme();
   bindEvents();
   loadEnvelopes();
 });

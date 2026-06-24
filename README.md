@@ -1,6 +1,6 @@
 # Envelope Budget API
 
-> A production-oriented envelope budgeting application built with **Node.js**, **Express**, **PostgreSQL**, and **Sequelize ORM**, paired with a vanilla JavaScript frontend styled after Apple's Human Interface Guidelines (HIG).
+> A production-oriented envelope budgeting application built with **Node.js**, **Express**, **PostgreSQL**, and **Sequelize ORM**, paired with a vanilla JavaScript frontend styled after the **Linear.app** design system.
 
 [![Node.js](https://img.shields.io/badge/Node.js-≥18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -41,7 +41,9 @@ This project evolved from an in-memory Express prototype (Part I) into a **persi
 - **Swagger UI** for interactive API exploration
 - **Render-ready** deployment configuration
 
-![Dashboard View](screenshots/dashboard.png)
+![Overview — Linear-inspired dashboard with budget distribution and recent activity](screenshots/dashboard.png)
+
+![Envelopes — data-dense table with monospace balances and progress bars](screenshots/envelopes.png)
 
 ---
 
@@ -351,10 +353,12 @@ Use Swagger UI to explore all endpoints, payload shapes, and status code variati
 
 The client lives in `public/` and is served as static assets by Express. It provides:
 
-- Envelope cards with health-indicator progress bars
-- Create, edit, delete, transfer, and spend flows
-- Dark/light mode, toast notifications, modal dialogs
-- Apple HIG-inspired design tokens
+- Sidebar navigation with **Overview**, **Envelopes**, **Activity**, and **New & Transfer** views
+- Data-dense envelope table with monospace balances and progress bars
+- Transaction ledger with payee, date, amount, and category micro-badges
+- Create, edit, delete, transfer, and spend flows via flat modals and border-aligned inputs
+- Toast notifications and keyboard-accessible modal dialogs
+- Linear.app-inspired dark theme with lavender accent (`#5e6ad2`)
 
 ### Phase 4 — API alignment (complete)
 
@@ -383,17 +387,18 @@ Render injects `DATABASE_URL` automatically when the database is linked to the w
 
 ## Design System
 
-The UI follows Apple's Human Interface Guidelines. Full visual specs are in [`design.md`](design.md).
+The UI follows the **Linear.app** aesthetic. Full visual specs are in [`design.md`](design.md) (generated via `npx getdesign@latest add linear.app`).
 
-| Token | Light | Dark | Usage |
-|-------|-------|------|-------|
-| Canvas | `#F2F2F7` | `#000000` | Page background |
-| Surface | `#FFFFFF` | `#1C1C1E` | Cards and panels |
-| System Blue | `#007AFF` | `#007AFF` | Primary actions |
-| System Green | `#34C759` | `#34C759` | Positive balances |
-| System Red | `#FF3B30` | `#FF3B30` | Warnings, danger |
+| Token | Value | Usage |
+|-------|-------|-------|
+| Canvas | `#010102` | Page background |
+| Surface 1 | `#0f1011` | Panels and cards |
+| Hairline | `#23252a` | Borders and dividers |
+| Ink | `#f7f8f8` | Primary text |
+| Primary | `#5e6ad2` | CTAs, focus rings, active states |
+| Success | `#27a644` | Positive balances |
 
-Typography uses Inter → SF Pro system stack. Spacing follows a 4px grid. Motion uses spring easing on cards, modals, and toasts.
+Typography uses **Inter** for UI and **JetBrains Mono** for numeric values. Spacing follows a 4px grid. Depth is carried by surface lift and hairline borders — not drop shadows.
 
 ---
 
@@ -405,7 +410,7 @@ Typography uses Inter → SF Pro system stack. Spacing follows a 4px grid. Motio
 | [`todo.md`](todo.md) | Kanban board — current task status |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | Render deployment instructions |
 | [`docs/swagger.json`](docs/swagger.json) | OpenAPI 3.0 specification |
-| [`design.md`](design.md) | HIG design system reference |
+| [`design.md`](design.md) | Linear.app design system reference |
 
 ---
 
