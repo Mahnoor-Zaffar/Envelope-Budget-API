@@ -5,8 +5,6 @@
 ### 🟥 TO DO
 - [ ] **Deploy application on Render**
   - Set up a managed PostgreSQL database and Web Service on Render, connect environment variables, and deploy from GitHub. See `DEPLOYMENT.md`.
-- [ ] **Update frontend for Part II API**
-  - Migrate `public/app.js` from removed endpoints (`/envelopes/:id/spend`, `/history`, `/distribute`) to `POST /transactions` and `GET /transactions`.
 
 ---
 
@@ -28,3 +26,4 @@
 - [x] Write Swagger documentation (`/api-docs`, `docs/swagger.json`)
 - [x] Setup local database (PostgreSQL running locally with `.env` configured)
 - [x] Initialize Git tracking and push Part II refactor to GitHub
+- [x] Update frontend for Part II API (`POST /transactions`, `GET /transactions`; removed distribute UI)

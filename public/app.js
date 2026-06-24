@@ -14,6 +14,7 @@
 // ─── Configuration ─────────────────────────────────────────────────────────────
 
 const API_BASE = '/envelopes';
+const TRANSACTIONS_BASE = '/transactions';
 
 const CHART_COLORS = [
   '#007AFF', '#34C759', '#FF9500', '#AF52DE',
@@ -44,10 +45,6 @@ const DOM = {
   transferFrom:   $('#transfer-from'),
   transferTo:     $('#transfer-to'),
   transferAmount: $('#transfer-amount'),
-
-  // Distribute form
-  distributeForm:   $('#distribute-form'),
-  distributeIncome: $('#distribute-income'),
 
   // Envelope grid
   envelopesGrid: $('#envelopes-grid'),
@@ -92,6 +89,8 @@ const DOM = {
 
 let envelopes = [];
 let totalBudget = 0;
+/** @type {Record<number, Object[]>} Transactions grouped by envelopeId */
+let transactionsByEnvelope = {};
 let confirmResolve = null; // For the custom confirm modal promise
 
 // ─── API Layer ─────────────────────────────────────────────────────────────────
@@ -147,23 +146,29 @@ const api = {
       body: JSON.stringify({ amount }),
     }),
 
-  /** Record a spend event. */
-  spend: (id, amount, note) =>
-    apiFetch(`${API_BASE}/${id}/spend`, {
+  /** Record a transaction against an envelope (deducts balance). */
+  spend: (envelopeId, amount, recipient) =>
+    apiFetch(TRANSACTIONS_BASE, {
       method: 'POST',
-      body: JSON.stringify({ amount, note }),
+      body: JSON.stringify({
+        date: new Date().toISOString(),
+        amount,
+        recipient: recipient || 'Expense',
+        envelopeId,
+      }),
     }),
+
+  /** Fetch all transactions from the API. */
+  getAllTransactions: () => apiFetch(TRANSACTIONS_BASE),
 
   /** Get spending history for an envelope. */
-  getHistory: (id) =>
-    apiFetch(`${API_BASE}/${id}/history`),
+  getHistory: async (envelopeId) => {
+    const cached = transactionsByEnvelope[envelopeId];
+    if (cached) return cached;
 
-  /** Distribute income across all envelopes. */
-  distribute: (totalIncome) =>
-    apiFetch(`${API_BASE}/distribute`, {
-      method: 'POST',
-      body: JSON.stringify({ totalIncome }),
-    }),
+    const all = await api.getAllTransactions();
+    return all.filter((t) => t.envelopeId === envelopeId);
+  },
 };
 
 // ─── Formatters ────────────────────────────────────────────────────────────────
@@ -323,7 +328,7 @@ function renderEnvelopeCard(env) {
     ? Math.min((env.balance / env.budget) * 100, 100)
     : 100;
   const health = getHealth(env.balance, env.budget);
-  const historyCount = env.spendingHistory ? env.spendingHistory.length : 0;
+  const historyCount = (transactionsByEnvelope[env.id] || []).length;
 
   return `
     <article class="envelope-card" data-id="${env.id}">
@@ -563,6 +568,25 @@ function renderLegendItems(envs, totalBalance) {
 // ─── Data Fetching ─────────────────────────────────────────────────────────────
 
 /**
+ * Fetch all transactions and group them by envelopeId for history counts.
+ */
+async function loadTransactions() {
+  try {
+    const all = await api.getAllTransactions();
+    transactionsByEnvelope = {};
+    for (const transaction of all) {
+      if (!transactionsByEnvelope[transaction.envelopeId]) {
+        transactionsByEnvelope[transaction.envelopeId] = [];
+      }
+      transactionsByEnvelope[transaction.envelopeId].push(transaction);
+    }
+  } catch (err) {
+    transactionsByEnvelope = {};
+    showToast(err.message, 'error');
+  }
+}
+
+/**
  * Fetch all envelopes from the API and refresh the UI.
  */
 async function loadEnvelopes() {
@@ -570,6 +594,7 @@ async function loadEnvelopes() {
     const data = await api.getAll();
     envelopes = data.envelopes;
     totalBudget = data.totalBudget;
+    await loadTransactions();
     refreshUI();
   } catch (err) {
     showToast(err.message, 'error');
@@ -636,29 +661,6 @@ async function handleTransfer(e) {
     await api.transfer(fromId, toId, amount);
     showToast(`Transferred ${formatCurrency(amount)} successfully!`, 'success');
     DOM.transferForm.reset();
-    await loadEnvelopes();
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
-
-/**
- * Handle distributing income across all envelopes.
- */
-async function handleDistribute(e) {
-  e.preventDefault();
-
-  const totalIncome = parseFloat(DOM.distributeIncome.value);
-
-  if (isNaN(totalIncome) || totalIncome <= 0) {
-    showToast('Income must be a positive number.', 'error');
-    return;
-  }
-
-  try {
-    await api.distribute(totalIncome);
-    showToast(`Distributed ${formatCurrency(totalIncome)} across all envelopes!`, 'success');
-    DOM.distributeForm.reset();
     await loadEnvelopes();
   } catch (err) {
     showToast(err.message, 'error');
@@ -747,8 +749,8 @@ async function toggleHistory(id) {
         .map((event) => `
           <div class="history-item">
             <div class="history-item__info">
-              <span class="history-item__note">${event.note ? escapeHtml(event.note) : 'Spending'}</span>
-              <span class="history-item__time">${formatDate(event.timestamp)}</span>
+              <span class="history-item__note">${escapeHtml(event.recipient || 'Expense')}</span>
+              <span class="history-item__time">${formatDate(event.date)}</span>
             </div>
             <span class="history-item__amount">-${formatCurrency(event.amount)}</span>
           </div>
@@ -833,7 +835,7 @@ async function handleSpendSubmit(e) {
 
   const id = parseInt(DOM.spendId.value, 10);
   const amount = parseFloat(DOM.spendAmount.value);
-  const note = DOM.spendNote.value.trim();
+  const recipient = DOM.spendNote.value.trim();
   const envelope = envelopes.find((env) => env.id === id);
 
   if (!envelope) {
@@ -846,13 +848,13 @@ async function handleSpendSubmit(e) {
     return;
   }
 
-  if (amount > envelope.balance) {
+  if (amount > parseFloat(envelope.balance)) {
     showToast('Insufficient funds! Cannot overdraft.', 'error');
     return;
   }
 
   try {
-    await api.spend(id, amount, note);
+    await api.spend(id, amount, recipient);
     showToast(`Spent ${formatCurrency(amount)} from "${envelope.title}"`, 'success');
     closeSpendModal();
     await loadEnvelopes();
@@ -867,7 +869,6 @@ function bindEvents() {
   // Forms
   DOM.createForm.addEventListener('submit', handleCreate);
   DOM.transferForm.addEventListener('submit', handleTransfer);
-  DOM.distributeForm.addEventListener('submit', handleDistribute);
   DOM.editForm.addEventListener('submit', handleEditSubmit);
   DOM.spendForm.addEventListener('submit', handleSpendSubmit);
 

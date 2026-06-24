@@ -1,104 +1,151 @@
-# 💰 Envelope Budget
+# Envelope Budget API
 
-> An enterprise-grade Envelope Budgeting application built with Node.js/Express and a native vanilla JavaScript frontend, styled after Apple's Human Interface Guidelines (HIG).
+> A production-oriented envelope budgeting application built with **Node.js**, **Express**, **PostgreSQL**, and **Sequelize ORM**, paired with a vanilla JavaScript frontend styled after Apple's Human Interface Guidelines (HIG).
 
-![Dashboard View](screenshots/dashboard.png)
+[![Node.js](https://img.shields.io/badge/Node.js-≥18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Express](https://img.shields.io/badge/Express-4.x-000000?logo=express&logoColor=white)](https://expressjs.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+**Repository:** [github.com/Mahnoor-Zaffar/Envelope-Budget-API](https://github.com/Mahnoor-Zaffar/Envelope-Budget-API)
 
 ---
 
 ## Table of Contents
 
 - [Overview](#overview)
-- [Screenshots](#screenshots)
+- [Project Status](#project-status)
+- [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
+- [Data Model](#data-model)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
 - [API Reference](#api-reference)
-- [Frontend Features](#frontend-features)
+- [Interactive Documentation](#interactive-documentation)
+- [Frontend](#frontend)
+- [Deployment](#deployment)
 - [Design System](#design-system)
-- [Technical Specifications](#technical-specifications)
+- [Related Documentation](#related-documentation)
 - [License](#license)
 
 ---
 
 ## Overview
 
-Envelope Budgeting is a personal finance method where you allocate your total income into virtual "envelopes" — each dedicated to a specific spending category (groceries, rent, entertainment, etc.). When an envelope runs out, you stop spending in that category.
+Envelope budgeting allocates income into category-specific **envelopes** (groceries, rent, entertainment, etc.). Each envelope tracks an allocated **budget** and a spendable **balance**. When an envelope is depleted, spending in that category stops until funds are reallocated or new income is logged.
 
-This application provides:
+This project evolved from an in-memory Express prototype (Part I) into a **persistent, database-backed API** (Part II) with:
 
-- **RESTful API** for full CRUD operations on budget envelopes
-- **Atomic fund transfers** between envelopes
-- **Real-time spending tracking** with overdraft protection
-- **Apple HIG-inspired UI** with dark/light mode, translucent headers, and micro-animations
-- **In-memory storage** with auto-incrementing IDs and transactional guarantees
+- Full **envelope CRUD** and **atomic fund transfers**
+- A dedicated **transaction subsystem** that logs external expenditures and adjusts envelope balances
+- **Swagger UI** for interactive API exploration
+- **Render-ready** deployment configuration
+
+![Dashboard View](screenshots/dashboard.png)
 
 ---
 
-## Screenshots
+## Project Status
 
-### Dashboard — Envelope Cards
+| Phase | Scope | Status |
+|-------|-------|--------|
+| **Phase 1** | Local PostgreSQL setup, `.env` configuration, database creation | ✅ Complete |
+| **Phase 2** | Sequelize models, envelope + transaction API, Swagger integration | ✅ Complete |
+| **Phase 3** | Local verification (health check, Swagger, curl/API testing) | ✅ Complete |
+| **Phase 4** | Frontend migration to `/transactions` API | ✅ Complete |
+| **Phase 5** | Production deployment on Render | ⏳ Pending |
 
-The main view showing all budget envelopes with health-indicator progress bars, real-time balance tracking, and quick-action buttons.
+See [`todo.md`](todo.md) for the live task board.
 
-![Dashboard with Envelopes](screenshots/dashboard.png)
+---
 
-### Empty State
+## Tech Stack
 
-A clean onboarding experience when no envelopes have been created yet.
-
-![Empty State](screenshots/empty-state.png)
-
-### Record Spending Modal
-
-A focused modal overlay for recording expenses against a specific envelope, with available balance shown.
-
-![Spend Modal](screenshots/spend-modal.png)
-
-### Transfer Funds Form
-
-The persistent transfer panel allows instant fund reallocation between any two envelopes.
-
-![Transfer Form](screenshots/transfer-form.png)
+| Layer | Technology |
+|-------|------------|
+| Runtime | Node.js ≥ 18 |
+| Web framework | Express 4 |
+| Database | PostgreSQL |
+| ORM | Sequelize 6 |
+| API docs | Swagger UI (`swagger-ui-express`) |
+| Security | Helmet, CORS, in-memory rate limiting |
+| Frontend | Vanilla HTML / CSS / JavaScript (zero build step) |
+| Deployment target | Render (Web Service + Managed PostgreSQL) |
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                        Browser Client                            │
-│  ┌─────────┐  ┌─────────┐  ┌──────────┐                        │
-│  │index.html│  │styles.css│  │  app.js  │                        │
-│  └─────────┘  └─────────┘  └──────────┘                        │
-│         │            │            │                               │
-│         └────────────┴────────────┘                               │
-│                      │  fetch()                                   │
-└──────────────────────┼───────────────────────────────────────────┘
-                       │ HTTP JSON
-┌──────────────────────┼───────────────────────────────────────────┐
-│                 Express Server                                    │
-│  ┌──────────┐  ┌───────────────┐  ┌────────────────────┐        │
-│  │ server.js │→ │envelopeRoutes │→ │envelopeController  │        │
-│  │(middleware)│  │  (router)     │  │ (request handlers) │        │
-│  └──────────┘  └───────────────┘  └────────┬───────────┘        │
-│                                             │                     │
-│                                    ┌────────▼───────────┐        │
-│                                    │   budgetStore.js    │        │
-│                                    │ (in-memory model)   │        │
-│                                    └────────────────────┘        │
-│                                                                   │
-│  ┌──────────────┐                                                │
-│  │constants.js  │ ← shared config, status codes, error messages  │
-│  └──────────────┘                                                │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Browser Client                              │
+│              public/index.html · styles.css · app.js                │
+│                              │ fetch()                              │
+└──────────────────────────────┼──────────────────────────────────────┘
+                               │ HTTP / JSON
+┌──────────────────────────────┼──────────────────────────────────────┐
+│                        Express Server                               │
+│  ┌──────────┐   ┌─────────────────────────────────────────────┐    │
+│  │ server.js│──►│ Middleware: Helmet · CORS · Rate Limit · JSON│    │
+│  └──────────┘   └─────────────────────────────────────────────┘    │
+│         │                                                             │
+│         ├── /api-docs ──────► Swagger UI (docs/swagger.json)         │
+│         ├── /health ────────► Health check                           │
+│         ├── /envelopes ─────► envelopeRoutes → envelopeController    │
+│         └── /transactions ──► transactionRoutes → transactionController│
+│                                          │                            │
+│                              ┌───────────▼───────────┐               │
+│                              │   Sequelize ORM        │               │
+│                              │  Envelope · Transaction│               │
+│                              └───────────┬───────────┘               │
+└──────────────────────────────────────────┼───────────────────────────┘
+                                           │ SQL (pooled connection)
+                              ┌────────────▼────────────┐
+                              │      PostgreSQL         │
+                              │  envelopes · transactions│
+                              └─────────────────────────┘
 ```
 
-**Key design decisions:**
-- **Layered MVC** — Models, controllers, and routes are fully decoupled
-- **Singleton store** — A single in-memory module maintains all state with transactional methods
-- **Defensive validation** — Every input is validated at the controller layer before reaching the model
-- **Atomic transfers** — Fund movements between envelopes happen as a single indivisible operation
+### Design principles
+
+- **Layered MVC** — routes, controllers, and models are decoupled; controllers own validation, models own persistence.
+- **Database transactions** — fund transfers and transaction writes use `sequelize.transaction()` with row-level locks to preserve atomicity.
+- **Defensive validation** — every request is validated at the controller layer before hitting the database.
+- **Uniform API contract** — `{ data: ... }` on success, `{ error: "..." }` on failure.
+- **Environment-driven config** — connection strings and pool settings resolve from environment variables; SSL is enabled automatically in production.
+
+---
+
+## Data Model
+
+```
+[ Envelope ] 1 ──── * [ Transaction ]
+```
+
+### Envelope
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | Integer | Primary key, auto-increment |
+| `title` | String(128) | Required, unique |
+| `budget` | Decimal(12,2) | Required, ≥ 0 |
+| `balance` | Decimal(12,2) | Required, ≥ 0 |
+
+### Transaction
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | Integer | Primary key, auto-increment |
+| `date` | Timestamp | Required |
+| `amount` | Decimal(12,2) | Required, > 0 |
+| `recipient` | String(256) | Required |
+| `envelopeId` | Integer | Foreign key → `envelopes.id` (CASCADE on delete) |
+
+**Domain rules:**
+- Creating a transaction **deducts** `amount` from the linked envelope's balance.
+- Deleting a transaction **refunds** `amount` back to the envelope.
+- Updating a transaction recalculates balances safely when `amount` or `envelopeId` changes.
+- Envelope balances cannot drop below zero.
 
 ---
 
@@ -107,21 +154,30 @@ The persistent transfer panel allows instant fund reallocation between any two e
 ```
 personal-budget-expressjs/
 ├── config/
-│   └── constants.js          # Centralized config, status codes, error messages
-├── models/
-│   └── budgetStore.js        # In-memory storage singleton with CRUD + transfer
+│   ├── constants.js          # Ports, paths, status codes, error messages
+│   └── database.js           # Sequelize connection pool + SSL config
 ├── controllers/
-│   └── envelopeController.js # Request/response handlers with schema validation
+│   ├── envelopeController.js # Envelope CRUD + transfer handlers
+│   └── transactionController.js
+├── models/
+│   ├── index.js              # Associations + initDatabase()
+│   ├── envelope.js
+│   └── transaction.js
 ├── routes/
-│   └── envelopeRoutes.js     # Express Router — decoupled route definitions
-├── public/
-│   ├── index.html            # Semantic HTML5 with modals and toast container
-│   ├── styles.css            # Apple HIG design system (CSS custom properties)
-│   └── app.js                # Vanilla JS client — API layer, rendering, events
-├── screenshots/              # Application screenshots for documentation
-├── server.js                 # Express entry point — middleware, static, routing
-├── package.json              # Project manifest and dependencies
-└── README.md                 # This file
+│   ├── envelopeRoutes.js
+│   └── transactionRoutes.js
+├── utils/
+│   └── controllerHelpers.js  # Parsing, formatting, error mapping
+├── docs/
+│   └── swagger.json          # OpenAPI 3.0 specification
+├── public/                   # Vanilla frontend (Phase 4 migration in progress)
+├── server.js                 # Express entry point
+├── .env.example              # Environment variable template
+├── render.yaml               # Render Blueprint (IaC)
+├── DEPLOYMENT.md             # Production deployment guide
+├── PRD.md                    # Product requirements (Part II)
+├── todo.md                   # Kanban task board
+└── README.md
 ```
 
 ---
@@ -130,279 +186,226 @@ personal-budget-expressjs/
 
 ### Prerequisites
 
-- **Node.js** ≥ 18.0 (uses `--watch` flag for dev mode)
-- **npm** ≥ 8.0
+- **Node.js** ≥ 18
+- **npm** ≥ 8
+- **PostgreSQL** ≥ 14 (local install or Docker)
 
-### Installation
+### 1. Clone and install
 
 ```bash
-# Clone the repository
-git clone <your-repo-url>
-cd personal-budget-expressjs
-
-# Install dependencies
+git clone https://github.com/Mahnoor-Zaffar/Envelope-Budget-API.git
+cd Envelope-Budget-API
 npm install
 ```
 
-### Running
+### 2. Configure environment
 
 ```bash
-# Development mode (auto-restart on file changes)
+cp .env.example .env
+```
+
+Edit `.env` with your local PostgreSQL credentials:
+
+```env
+PORT=3000
+NODE_ENV=development
+DATABASE_URL=postgresql://YOUR_USER@localhost:5432/envelope_budget
+```
+
+> `.env` is gitignored and never committed. Only `.env.example` is tracked.
+
+### 3. Create the database
+
+```bash
+createdb envelope_budget
+# or: psql postgres -c "CREATE DATABASE envelope_budget;"
+```
+
+Ensure PostgreSQL is running:
+
+```bash
+pg_isready
+```
+
+### 4. Start the server
+
+```bash
+# Development (auto-restart on file changes)
 npm run dev
 
-# Production mode
+# Production
 npm start
 ```
 
-The server starts at **http://localhost:3000** by default.
+On successful startup:
 
-### Environment Variables
+```
+✓  PostgreSQL connected and models synchronized.
+✦  Envelope Budget API listening on http://localhost:3000
+   Envelopes:    /envelopes
+   Transactions: /transactions
+   Swagger:      /api-docs
+   Health:       /health
+```
+
+### Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT`   | `3000`  | Port the Express server listens on |
+| `PORT` | `3000` | HTTP port |
+| `NODE_ENV` | `development` | Set to `production` on Render (enables DB SSL) |
+| `DATABASE_URL` | — | **Required.** PostgreSQL connection string |
+| `DB_POOL_MAX` | `5` | Max connections in pool |
+| `DB_POOL_MIN` | `0` | Min idle connections |
+| `DB_LOGGING` | `false` | Set to `true` to log SQL queries |
 
 ---
 
 ## API Reference
 
-All API endpoints are mounted under `/envelopes`. Request and response bodies are JSON.
+All endpoints accept and return **JSON**. Base URLs:
 
-### Base URL
+| Resource | Base path |
+|----------|-----------|
+| Envelopes | `/envelopes` |
+| Transactions | `/transactions` |
+| Health | `/health` |
+| Docs | `/api-docs` |
 
-```
-http://localhost:3000/envelopes
-```
+### Envelopes
 
-### Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/envelopes` | Create envelope (`title`, `budget`) |
+| `GET` | `/envelopes` | List all envelopes + aggregated `totalBudget` |
+| `GET` | `/envelopes/:id` | Get envelope by ID |
+| `PUT` | `/envelopes/:id` | Update `title`, `budget`, and/or `balance` |
+| `DELETE` | `/envelopes/:id` | Delete envelope (cascades transactions) |
+| `POST` | `/envelopes/transfer/:fromId/:toId` | Atomic fund transfer (`amount`) |
 
-#### `POST /envelopes` — Create Envelope
+**Create envelope example:**
 
-Create a new budget envelope. The initial balance equals the budget, and the total budget is incremented accordingly.
-
-**Request Body:**
-```json
-{
-  "title": "Groceries",
-  "budget": 500
-}
-```
-
-**Response:** `201 Created`
-```json
-{
-  "data": {
-    "id": 1,
-    "title": "Groceries",
-    "budget": 500,
-    "balance": 500,
-    "createdAt": "2026-06-12T20:24:14.474Z",
-    "updatedAt": "2026-06-12T20:24:14.474Z"
-  }
-}
+```bash
+curl -X POST http://localhost:3000/envelopes \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Groceries","budget":500}'
 ```
 
-**Validation:**
-- `title` — Required, non-empty string, max 128 characters
-- `budget` — Required, non-negative number, max 1,000,000,000
+**Transfer example:**
 
----
-
-#### `GET /envelopes` — List All Envelopes
-
-Returns every envelope along with the global total budget.
-
-**Response:** `200 OK`
-```json
-{
-  "data": {
-    "totalBudget": 2700,
-    "envelopes": [
-      { "id": 1, "title": "Groceries", "budget": 500, "balance": 500, "..." : "..." },
-      { "id": 2, "title": "Rent", "budget": 1200, "balance": 1200, "..." : "..." }
-    ]
-  }
-}
+```bash
+curl -X POST http://localhost:3000/envelopes/transfer/1/2 \
+  -H "Content-Type: application/json" \
+  -d '{"amount":50}'
 ```
 
----
+### Transactions
 
-#### `GET /envelopes/:id` — Get Single Envelope
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/transactions` | Log expenditure; deducts from envelope balance |
+| `GET` | `/transactions` | List all transactions |
+| `GET` | `/transactions/:id` | Get transaction by ID |
+| `PUT` | `/transactions/:id` | Update transaction; recalculates balances |
+| `DELETE` | `/transactions/:id` | Delete transaction; refunds envelope balance |
 
-**Response:** `200 OK` or `404 Not Found`
-```json
-{
-  "data": {
-    "id": 1,
-    "title": "Groceries",
-    "budget": 500,
-    "balance": 450,
-    "createdAt": "2026-06-12T20:24:14.474Z",
-    "updatedAt": "2026-06-12T20:30:00.000Z"
-  }
-}
+**Create transaction example:**
+
+```bash
+curl -X POST http://localhost:3000/transactions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "date": "2026-06-25T12:00:00.000Z",
+    "amount": 42.50,
+    "recipient": "Whole Foods",
+    "envelopeId": 1
+  }'
 ```
 
----
-
-#### `PUT /envelopes/:id` — Update Envelope
-
-Mutate the title, budget, and/or balance of an existing envelope.
-
-- **Budget changes** adjust the total budget by the delta and the balance proportionally
-- **Balance must never drop below 0** — overdrafts return `400 Bad Request`
-
-**Request Body** (all fields optional, at least one required):
-```json
-{
-  "title": "Weekly Groceries",
-  "budget": 600,
-  "balance": 450
-}
-```
-
-**Response:** `200 OK`, `400 Bad Request`, or `404 Not Found`
-
----
-
-#### `DELETE /envelopes/:id` — Delete Envelope
-
-Removes the envelope and decrements its remaining balance from the total budget.
-
-**Response:** `204 No Content` or `404 Not Found`
-
----
-
-#### `POST /envelopes/transfer/:fromId/:toId` — Transfer Funds
-
-Atomically transfer funds from one envelope to another. Fails fast if funds are insufficient or either ID doesn't match.
-
-**Request Body:**
-```json
-{
-  "amount": 50
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "data": {
-    "from": { "id": 1, "title": "Groceries", "balance": 450, "..." : "..." },
-    "to":   { "id": 3, "title": "Entertainment", "balance": 250, "..." : "..." }
-  }
-}
-```
-
----
-
-#### `GET /health` — Health Check
+### Error responses
 
 ```json
-{
-  "status": "ok",
-  "uptime": 765.96
-}
+{ "error": "Descriptive error message." }
 ```
 
----
-
-### Error Response Format
-
-All errors follow a uniform JSON structure:
-
-```json
-{
-  "error": "Descriptive error message."
-}
-```
-
-| Status Code | Usage |
-|-------------|-------|
-| `400` | Validation failure, overdraft, insufficient funds |
-| `404` | Envelope not found |
-| `409` | Conflict (reserved for future use) |
+| Status | Meaning |
+|--------|---------|
+| `400` | Validation failure, insufficient funds, overdraft |
+| `404` | Envelope or transaction not found |
+| `429` | Rate limit exceeded |
 | `500` | Unexpected server error |
 
 ---
 
-## Frontend Features
+## Interactive Documentation
 
-The client is a zero-dependency vanilla JavaScript SPA that communicates with the REST API via `fetch()`.
+Full OpenAPI 3.0 specs with request/response schemas are served at:
 
-| Feature | Description |
-|---------|-------------|
-| **Create Envelopes** | Form with real-time validation and instant feedback |
-| **Edit Envelopes** | Modal dialog to modify title and budget |
-| **Delete Envelopes** | Confirmation dialog + exit animation |
-| **Record Spending** | Dedicated modal showing available balance |
-| **Transfer Funds** | Dropdown-based form for instant reallocation |
-| **Progress Bars** | Color-coded health indicators (green → orange → red) |
-| **Toast Notifications** | Success/error/info toasts with auto-dismiss |
-| **Keyboard Navigation** | Escape key closes modals |
-| **XSS Protection** | All user content is HTML-escaped before rendering |
-| **Dark/Light Mode** | Automatic via `prefers-color-scheme` media query |
+**http://localhost:3000/api-docs**
+
+Use Swagger UI to explore all endpoints, payload shapes, and status code variations without leaving the browser.
+
+---
+
+## Frontend
+
+The client lives in `public/` and is served as static assets by Express. It provides:
+
+- Envelope cards with health-indicator progress bars
+- Create, edit, delete, transfer, and spend flows
+- Dark/light mode, toast notifications, modal dialogs
+- Apple HIG-inspired design tokens
+
+### Phase 4 — API alignment (complete)
+
+The frontend uses the Part II transaction API:
+
+| Feature | Endpoint |
+|---------|----------|
+| Record spending | `POST /transactions` |
+| View history | `GET /transactions` (filtered by `envelopeId`) |
+| Envelope CRUD + transfer | `/envelopes` (unchanged) |
+
+The distribute-income panel was removed — that endpoint is not part of Part II. Income can be added manually via envelope budget updates until a distribute endpoint is re-implemented.
+
+---
+
+## Deployment
+
+Production deployment targets **Render** with a managed PostgreSQL instance.
+
+- **Quick start:** use the included [`render.yaml`](render.yaml) Blueprint
+- **Step-by-step guide:** see [`DEPLOYMENT.md`](DEPLOYMENT.md)
+
+Render injects `DATABASE_URL` automatically when the database is linked to the web service. Set `NODE_ENV=production` to enable SSL for database connections.
 
 ---
 
 ## Design System
 
-The UI follows Apple's Human Interface Guidelines with these tokens:
-
-### Colors
+The UI follows Apple's Human Interface Guidelines. Full visual specs are in [`design.md`](design.md).
 
 | Token | Light | Dark | Usage |
 |-------|-------|------|-------|
 | Canvas | `#F2F2F7` | `#000000` | Page background |
 | Surface | `#FFFFFF` | `#1C1C1E` | Cards and panels |
-| System Blue | `#007AFF` | `#007AFF` | Primary actions, links |
-| System Green | `#34C759` | `#34C759` | Positive balances, success |
-| System Red | `#FF3B30` | `#FF3B30` | Overdraft warnings, danger |
-| System Orange | `#FF9500` | `#FF9500` | Low-balance warnings |
+| System Blue | `#007AFF` | `#007AFF` | Primary actions |
+| System Green | `#34C759` | `#34C759` | Positive balances |
+| System Red | `#FF3B30` | `#FF3B30` | Warnings, danger |
 
-### Typography
-
-- **Font Stack:** Inter → -apple-system → BlinkMacSystemFont → SF Pro
-- **Scale:** 11px (xs) → 34px (xxl)
-- **Weights:** 400 (regular) through 800 (heavy)
-
-### Spacing
-
-All spacing uses 4px base increments: 4, 8, 12, 16, 20, 24, 32, 40px
-
-### Animations
-
-- **Card enter:** `translateY(16px) scale(0.97) → origin` with spring easing
-- **Card exit:** `opacity → 0, scale(0.92)` on delete
-- **Modal:** backdrop-filter blur + scale spring transition
-- **Buttons:** `scale(0.97)` on press, `scale(1.1)` hover on icon buttons
-- **Toasts:** slide-up entry with spring easing, slide-up exit
+Typography uses Inter → SF Pro system stack. Spacing follows a 4px grid. Motion uses spring easing on cards, modals, and toasts.
 
 ---
 
-## Technical Specifications
+## Related Documentation
 
-### BudgetStore (`models/budgetStore.js`)
-
-- **Singleton pattern** — single module-scoped state
-- **Auto-incrementing IDs** — `nextId` counter ensures uniqueness
-- **Floating-point safety** — `Math.round((n + EPSILON) * 100) / 100` on every mutation
-- **Atomic transfers** — both debit and credit happen synchronously in a single function call
-- **Defensive copies** — all reads return shallow clones via spread operator
-
-### EnvelopeController (`controllers/envelopeController.js`)
-
-- **Rigid schema validation** before every store operation
-- **Uniform response format** — `{ data }` on success, `{ error }` on failure
-- **Semantic HTTP status codes** — 200, 201, 204, 400, 404
-- **ID parsing helper** — validates positive integers, rejects NaN/negative/zero
-
-### Server (`server.js`)
-
-- **Middleware:** `express.json()` for body parsing
-- **Static serving:** `express.static()` from `/public`
-- **404 catch-all** for unmatched routes
-- **Global error handler** with stack trace logging
+| Document | Purpose |
+|----------|---------|
+| [`PRD.md`](PRD.md) | Product requirements — Part II scope and acceptance criteria |
+| [`todo.md`](todo.md) | Kanban board — current task status |
+| [`DEPLOYMENT.md`](DEPLOYMENT.md) | Render deployment instructions |
+| [`docs/swagger.json`](docs/swagger.json) | OpenAPI 3.0 specification |
+| [`design.md`](design.md) | HIG design system reference |
 
 ---
 
