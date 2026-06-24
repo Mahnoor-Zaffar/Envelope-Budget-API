@@ -1,0 +1,463 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Envelope Budget API",
+    "description": "Production-ready REST API for envelope budgeting with PostgreSQL persistence, transaction logging, and atomic fund transfers.",
+    "version": "2.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    { "name": "Health", "description": "Server health checks" },
+    { "name": "Envelopes", "description": "Budget envelope CRUD and transfers" },
+    { "name": "Transactions", "description": "External expenditure logs" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "Server is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "uptime": { "type": "number", "example": 123.456 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/envelopes": {
+      "get": {
+        "tags": ["Envelopes"],
+        "summary": "List all envelopes",
+        "responses": {
+          "200": {
+            "description": "Envelope collection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "totalBudget": { "type": "number", "example": 1500 },
+                        "envelopes": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Envelope" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "tags": ["Envelopes"],
+        "summary": "Create a new envelope",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateEnvelopeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Envelope created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/Envelope" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/envelopes/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/EnvelopeId" }],
+      "get": {
+        "tags": ["Envelopes"],
+        "summary": "Get envelope by ID",
+        "responses": {
+          "200": {
+            "description": "Envelope found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/Envelope" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "put": {
+        "tags": ["Envelopes"],
+        "summary": "Update an envelope",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateEnvelopeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Envelope updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/Envelope" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "tags": ["Envelopes"],
+        "summary": "Delete an envelope",
+        "description": "Deletes the envelope and cascades removal of linked transactions.",
+        "responses": {
+          "204": { "description": "Envelope deleted" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/envelopes/transfer/{fromId}/{toId}": {
+      "parameters": [
+        {
+          "name": "fromId",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "integer", "minimum": 1 },
+          "description": "Source envelope ID"
+        },
+        {
+          "name": "toId",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "integer", "minimum": 1 },
+          "description": "Destination envelope ID"
+        }
+      ],
+      "post": {
+        "tags": ["Envelopes"],
+        "summary": "Transfer funds between envelopes",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TransferRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transfer completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "from": { "$ref": "#/components/schemas/Envelope" },
+                        "to": { "$ref": "#/components/schemas/Envelope" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/transactions": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "List all transactions",
+        "responses": {
+          "200": {
+            "description": "Transaction collection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Transaction" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "tags": ["Transactions"],
+        "summary": "Create a transaction",
+        "description": "Atomically deducts the payment amount from the linked envelope balance.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateTransactionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Transaction created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/Transaction" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/transactions/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/TransactionId" }],
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "Get transaction by ID",
+        "responses": {
+          "200": {
+            "description": "Transaction found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/Transaction" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "put": {
+        "tags": ["Transactions"],
+        "summary": "Update a transaction",
+        "description": "Safely recalculates envelope balances when amount or envelopeId changes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateTransactionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/Transaction" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "tags": ["Transactions"],
+        "summary": "Delete a transaction",
+        "description": "Refunds the transaction amount back to the parent envelope balance.",
+        "responses": {
+          "204": { "description": "Transaction deleted and funds refunded" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "EnvelopeId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "integer", "minimum": 1 },
+        "description": "Envelope primary key"
+      },
+      "TransactionId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "integer", "minimum": 1 },
+        "description": "Transaction primary key"
+      }
+    },
+    "schemas": {
+      "Envelope": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "title": { "type": "string", "example": "Groceries" },
+          "budget": { "type": "number", "format": "float", "example": 500 },
+          "balance": { "type": "number", "format": "float", "example": 350.25 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "date": { "type": "string", "format": "date-time" },
+          "amount": { "type": "number", "format": "float", "example": 42.5 },
+          "recipient": { "type": "string", "example": "Whole Foods" },
+          "envelopeId": { "type": "integer", "example": 1 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateEnvelopeRequest": {
+        "type": "object",
+        "required": ["title", "budget"],
+        "properties": {
+          "title": { "type": "string", "example": "Groceries" },
+          "budget": { "type": "number", "minimum": 0, "example": 500 }
+        }
+      },
+      "UpdateEnvelopeRequest": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string", "example": "Food & Groceries" },
+          "budget": { "type": "number", "minimum": 0, "example": 600 },
+          "balance": { "type": "number", "minimum": 0, "example": 450 }
+        }
+      },
+      "TransferRequest": {
+        "type": "object",
+        "required": ["amount"],
+        "properties": {
+          "amount": { "type": "number", "minimum": 0.01, "example": 75 }
+        }
+      },
+      "CreateTransactionRequest": {
+        "type": "object",
+        "required": ["date", "amount", "recipient", "envelopeId"],
+        "properties": {
+          "date": { "type": "string", "format": "date-time", "example": "2026-06-25T12:00:00.000Z" },
+          "amount": { "type": "number", "minimum": 0.01, "example": 42.5 },
+          "recipient": { "type": "string", "example": "Whole Foods" },
+          "envelopeId": { "type": "integer", "minimum": 1, "example": 1 }
+        }
+      },
+      "UpdateTransactionRequest": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string", "format": "date-time" },
+          "amount": { "type": "number", "minimum": 0.01 },
+          "recipient": { "type": "string" },
+          "envelopeId": { "type": "integer", "minimum": 1 }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "example": "Validation failed." }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Validation or business rule failure",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Unexpected server error",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      }
+    }
+  }
+}

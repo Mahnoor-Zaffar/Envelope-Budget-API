@@ -13,6 +13,9 @@ const PORT = process.env.PORT || 3000;
 /** @type {string} Base path prefix for the envelopes REST API. */
 const API_BASE = '/envelopes';
 
+/** @type {string} Base path prefix for the transactions REST API. */
+const TRANSACTIONS_BASE = '/transactions';
+
 // ─── Budget Defaults ───────────────────────────────────────────────────────────
 
 /** @type {number} The initial global budget the system starts with. */
@@ -51,11 +54,21 @@ const ERRORS = Object.freeze({
   TRANSFER_SAME: 'Transfer denied: source and destination envelopes must be different.',
   INVALID_AMOUNT: 'Validation failed: "amount" must be a positive number.',
   INVALID_ID: 'Validation failed: envelope ID must be a positive integer.',
+  NO_ENVELOPES: 'Distribution failed: no envelopes exist to distribute funds into.',
+  INVALID_INCOME: 'Validation failed: "totalIncome" must be a positive number.',
+  INVALID_NOTE: 'Validation failed: "note" must be a string of 256 characters or fewer.',
+  RATE_LIMITED: 'Too many requests. Please try again later.',
+  DUPLICATE_TITLE: 'Validation failed: an envelope with this title already exists.',
+  TRANSACTION_NOT_FOUND: 'The requested transaction does not exist.',
+  MISSING_RECIPIENT: 'Validation failed: "recipient" is required and must be a non-empty string.',
+  MISSING_DATE: 'Validation failed: "date" is required and must be a valid timestamp.',
+  MISSING_ENVELOPE_ID: 'Validation failed: "envelopeId" is required and must be a positive integer.',
 });
 
 module.exports = {
   PORT,
   API_BASE,
+  TRANSACTIONS_BASE,
   DEFAULT_TOTAL_BUDGET,
   MAX_TITLE_LENGTH,
   MAX_BUDGET_VALUE,

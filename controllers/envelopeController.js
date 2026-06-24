@@ -1,206 +1,208 @@
 /**
- * EnvelopeController – Request / Response lifecycle handlers.
+ * EnvelopeController – Async request / response handlers backed by Sequelize.
  *
- * Every handler performs rigid schema verification before delegating to the
- * BudgetStore.  Responses follow a uniform JSON envelope:
+ * Every handler performs schema verification before delegating to the database.
+ * Responses follow a uniform JSON envelope:
  *   { data: <payload> }          on success
- *   { error: "<message>" }       on failure
+ *   { error: "<message>" }         on failure
  */
 
-const store = require('../models/budgetStore');
+const { Envelope, sequelize } = require('../models');
 const {
   STATUS,
   ERRORS,
   MAX_TITLE_LENGTH,
   MAX_BUDGET_VALUE,
 } = require('../config/constants');
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * Parse a route parameter as a positive integer ID.
- * @param {string} raw – The raw parameter string.
- * @returns {number|null} The parsed integer or null if invalid.
- */
-function parseId(raw) {
-  const id = Number(raw);
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
-
-/**
- * Send a standardised JSON error response.
- * @param {import('express').Response} res
- * @param {number} status
- * @param {string} message
- */
-function sendError(res, status, message) {
-  return res.status(status).json({ error: message });
-}
+const {
+  roundMoney,
+  parseId,
+  sendError,
+  handleSequelizeError,
+  formatEnvelope,
+} = require('../utils/controllerHelpers');
 
 // ─── POST /envelopes ───────────────────────────────────────────────────────────
 
-/**
- * Create a new budget envelope.
- *
- * Required body: { title: string, budget: number (≥ 0) }
- * Sets initial balance equal to budget and increments globalBudget.
- */
-function createEnvelope(req, res) {
-  const { title, budget } = req.body;
+async function createEnvelope(req, res) {
+  try {
+    const { title, budget } = req.body;
 
-  // ── Schema verification ────────────────────────────────────────────────
-  if (title === undefined || typeof title !== 'string' || title.trim().length === 0) {
-    return sendError(res, STATUS.BAD_REQUEST, ERRORS.MISSING_TITLE);
+    if (title === undefined || typeof title !== 'string' || title.trim().length === 0) {
+      return sendError(res, STATUS.BAD_REQUEST, ERRORS.MISSING_TITLE);
+    }
+
+    if (title.trim().length > MAX_TITLE_LENGTH) {
+      return sendError(res, STATUS.BAD_REQUEST, ERRORS.TITLE_TOO_LONG);
+    }
+
+    if (budget === undefined || typeof budget !== 'number' || budget < 0 || Number.isNaN(budget)) {
+      return sendError(res, STATUS.BAD_REQUEST, ERRORS.INVALID_BUDGET);
+    }
+
+    if (budget > MAX_BUDGET_VALUE) {
+      return sendError(res, STATUS.BAD_REQUEST, ERRORS.BUDGET_TOO_LARGE);
+    }
+
+    const roundedBudget = roundMoney(budget);
+    const envelope = await Envelope.create({
+      title: title.trim(),
+      budget: roundedBudget,
+      balance: roundedBudget,
+    });
+
+    return res.status(STATUS.CREATED).json({ data: formatEnvelope(envelope) });
+  } catch (err) {
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      return sendError(res, STATUS.BAD_REQUEST, ERRORS.DUPLICATE_TITLE);
+    }
+    return handleSequelizeError(res, err);
   }
-
-  if (title.trim().length > MAX_TITLE_LENGTH) {
-    return sendError(res, STATUS.BAD_REQUEST, ERRORS.TITLE_TOO_LONG);
-  }
-
-  if (budget === undefined || typeof budget !== 'number' || budget < 0 || Number.isNaN(budget)) {
-    return sendError(res, STATUS.BAD_REQUEST, ERRORS.INVALID_BUDGET);
-  }
-
-  if (budget > MAX_BUDGET_VALUE) {
-    return sendError(res, STATUS.BAD_REQUEST, ERRORS.BUDGET_TOO_LARGE);
-  }
-
-  const envelope = store.createEnvelope(title, budget);
-  return res.status(STATUS.CREATED).json({ data: envelope });
 }
 
 // ─── GET /envelopes ────────────────────────────────────────────────────────────
 
-/**
- * Retrieve all envelopes alongside the current global budget.
- */
-function getAllEnvelopes(_req, res) {
-  const envelopes = store.getAllEnvelopes();
-  return res.status(STATUS.OK).json({
-    data: {
-      totalBudget: store.getTotalBudget(),
-      envelopes,
-    },
-  });
+async function getAllEnvelopes(_req, res) {
+  try {
+    const envelopes = await Envelope.findAll({ order: [['id', 'ASC']] });
+    const totalBudget = envelopes.reduce(
+      (sum, envelope) => roundMoney(sum + parseFloat(envelope.budget)),
+      0,
+    );
+
+    return res.status(STATUS.OK).json({
+      data: {
+        totalBudget,
+        envelopes: envelopes.map(formatEnvelope),
+      },
+    });
+  } catch (err) {
+    return handleSequelizeError(res, err);
+  }
 }
 
 // ─── GET /envelopes/:id ────────────────────────────────────────────────────────
 
-/**
- * Retrieve a single envelope by its integer ID.
- * Returns 404 with a clean JSON error if the asset is missing.
- */
-function getEnvelopeById(req, res) {
-  const id = parseId(req.params.id);
-  if (!id) {
-    return sendError(res, STATUS.BAD_REQUEST, ERRORS.INVALID_ID);
-  }
+async function getEnvelopeById(req, res) {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) {
+      return sendError(res, STATUS.BAD_REQUEST, ERRORS.INVALID_ID);
+    }
 
-  const envelope = store.getEnvelopeById(id);
-  if (!envelope) {
-    return sendError(res, STATUS.NOT_FOUND, ERRORS.ENVELOPE_NOT_FOUND);
-  }
+    const envelope = await Envelope.findByPk(id);
+    if (!envelope) {
+      return sendError(res, STATUS.NOT_FOUND, ERRORS.ENVELOPE_NOT_FOUND);
+    }
 
-  return res.status(STATUS.OK).json({ data: envelope });
+    return res.status(STATUS.OK).json({ data: formatEnvelope(envelope) });
+  } catch (err) {
+    return handleSequelizeError(res, err);
+  }
 }
 
 // ─── PUT /envelopes/:id ────────────────────────────────────────────────────────
 
-/**
- * Update an existing envelope's title, budget, or balance.
- *
- * - When budget changes the total budget is adjusted by the delta.
- * - A withdrawal that would cause balance < 0 returns 400 BAD_REQUEST.
- */
-function updateEnvelope(req, res) {
-  const id = parseId(req.params.id);
-  if (!id) {
-    return sendError(res, STATUS.BAD_REQUEST, ERRORS.INVALID_ID);
-  }
-
-  const updates = {};
-  const { title, budget, balance } = req.body;
-
-  // Validate optional title
-  if (title !== undefined) {
-    if (typeof title !== 'string' || title.trim().length === 0) {
-      return sendError(res, STATUS.BAD_REQUEST, ERRORS.MISSING_TITLE);
+async function updateEnvelope(req, res) {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) {
+      return sendError(res, STATUS.BAD_REQUEST, ERRORS.INVALID_ID);
     }
-    if (title.trim().length > MAX_TITLE_LENGTH) {
-      return sendError(res, STATUS.BAD_REQUEST, ERRORS.TITLE_TOO_LONG);
+
+    const envelope = await Envelope.findByPk(id);
+    if (!envelope) {
+      return sendError(res, STATUS.NOT_FOUND, ERRORS.ENVELOPE_NOT_FOUND);
     }
-    updates.title = title;
-  }
 
-  // Validate optional budget
-  if (budget !== undefined) {
-    if (typeof budget !== 'number' || budget < 0 || Number.isNaN(budget)) {
-      return sendError(res, STATUS.BAD_REQUEST, ERRORS.INVALID_BUDGET);
+    const { title, budget, balance } = req.body;
+    const updates = {};
+
+    if (title !== undefined) {
+      if (typeof title !== 'string' || title.trim().length === 0) {
+        return sendError(res, STATUS.BAD_REQUEST, ERRORS.MISSING_TITLE);
+      }
+      if (title.trim().length > MAX_TITLE_LENGTH) {
+        return sendError(res, STATUS.BAD_REQUEST, ERRORS.TITLE_TOO_LONG);
+      }
+      updates.title = title.trim();
     }
-    if (budget > MAX_BUDGET_VALUE) {
-      return sendError(res, STATUS.BAD_REQUEST, ERRORS.BUDGET_TOO_LARGE);
+
+    if (budget !== undefined) {
+      if (typeof budget !== 'number' || budget < 0 || Number.isNaN(budget)) {
+        return sendError(res, STATUS.BAD_REQUEST, ERRORS.INVALID_BUDGET);
+      }
+      if (budget > MAX_BUDGET_VALUE) {
+        return sendError(res, STATUS.BAD_REQUEST, ERRORS.BUDGET_TOO_LARGE);
+      }
+
+      const newBudget = roundMoney(budget);
+      const delta = roundMoney(newBudget - parseFloat(envelope.budget));
+      const newBalance = roundMoney(parseFloat(envelope.balance) + delta);
+
+      if (newBalance < 0) {
+        return sendError(res, STATUS.BAD_REQUEST, ERRORS.OVERDRAFT);
+      }
+
+      updates.budget = newBudget;
+      updates.balance = newBalance;
     }
-    updates.budget = budget;
-  }
 
-  // Validate optional balance (spending/withdrawal)
-  if (balance !== undefined) {
-    if (typeof balance !== 'number' || Number.isNaN(balance)) {
-      return sendError(res, STATUS.BAD_REQUEST, ERRORS.INVALID_BUDGET);
+    if (balance !== undefined && budget === undefined) {
+      if (typeof balance !== 'number' || Number.isNaN(balance)) {
+        return sendError(res, STATUS.BAD_REQUEST, ERRORS.INVALID_BUDGET);
+      }
+
+      const newBalance = roundMoney(balance);
+      if (newBalance < 0) {
+        return sendError(res, STATUS.BAD_REQUEST, ERRORS.OVERDRAFT);
+      }
+
+      updates.balance = newBalance;
     }
-    updates.balance = balance;
+
+    if (Object.keys(updates).length === 0) {
+      return sendError(
+        res,
+        STATUS.BAD_REQUEST,
+        'At least one of "title", "budget", or "balance" must be provided.',
+      );
+    }
+
+    await envelope.update(updates);
+    return res.status(STATUS.OK).json({ data: formatEnvelope(envelope) });
+  } catch (err) {
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      return sendError(res, STATUS.BAD_REQUEST, ERRORS.DUPLICATE_TITLE);
+    }
+    return handleSequelizeError(res, err);
   }
-
-  // At least one field must be present
-  if (Object.keys(updates).length === 0) {
-    return sendError(
-      res,
-      STATUS.BAD_REQUEST,
-      'At least one of "title", "budget", or "balance" must be provided.',
-    );
-  }
-
-  const result = store.updateEnvelope(id, updates);
-
-  if (!result.success) {
-    const status = result.error === ERRORS.ENVELOPE_NOT_FOUND
-      ? STATUS.NOT_FOUND
-      : STATUS.BAD_REQUEST;
-    return sendError(res, status, result.error);
-  }
-
-  return res.status(STATUS.OK).json({ data: result.data });
 }
 
 // ─── DELETE /envelopes/:id ─────────────────────────────────────────────────────
 
-/**
- * Remove an envelope from memory and decrement its remaining balance from
- * the global total.  Returns 404 if the ID is invalid.
- */
-function deleteEnvelope(req, res) {
-  const id = parseId(req.params.id);
-  if (!id) {
-    return sendError(res, STATUS.BAD_REQUEST, ERRORS.INVALID_ID);
-  }
+async function deleteEnvelope(req, res) {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) {
+      return sendError(res, STATUS.BAD_REQUEST, ERRORS.INVALID_ID);
+    }
 
-  const result = store.deleteEnvelope(id);
-  if (!result.success) {
-    return sendError(res, STATUS.NOT_FOUND, result.error);
-  }
+    const envelope = await Envelope.findByPk(id);
+    if (!envelope) {
+      return sendError(res, STATUS.NOT_FOUND, ERRORS.ENVELOPE_NOT_FOUND);
+    }
 
-  return res.status(STATUS.NO_CONTENT).send();
+    await envelope.destroy();
+    return res.status(STATUS.NO_CONTENT).send();
+  } catch (err) {
+    return handleSequelizeError(res, err);
+  }
 }
 
 // ─── POST /envelopes/transfer/:fromId/:toId ────────────────────────────────────
 
-/**
- * Transfer funds between two envelopes atomically.
- *
- * Required body: { amount: number (> 0) }
- * Fails fast if funds are insufficient or either ID is unknown.
- */
-function transferFunds(req, res) {
+async function transferFunds(req, res) {
   const fromId = parseId(req.params.fromId);
   const toId = parseId(req.params.toId);
 
@@ -222,19 +224,48 @@ function transferFunds(req, res) {
     return sendError(res, STATUS.BAD_REQUEST, ERRORS.BUDGET_TOO_LARGE);
   }
 
-  const result = store.transferFunds(fromId, toId, amount);
+  const transferAmount = roundMoney(amount);
+  const dbTransaction = await sequelize.transaction();
 
-  if (!result.success) {
-    const status = result.error === ERRORS.ENVELOPE_NOT_FOUND
-      ? STATUS.NOT_FOUND
-      : STATUS.BAD_REQUEST;
-    return sendError(res, status, result.error);
+  try {
+    const fromEnvelope = await Envelope.findByPk(fromId, {
+      lock: dbTransaction.LOCK.UPDATE,
+      transaction: dbTransaction,
+    });
+    const toEnvelope = await Envelope.findByPk(toId, {
+      lock: dbTransaction.LOCK.UPDATE,
+      transaction: dbTransaction,
+    });
+
+    if (!fromEnvelope || !toEnvelope) {
+      await dbTransaction.rollback();
+      return sendError(res, STATUS.NOT_FOUND, ERRORS.ENVELOPE_NOT_FOUND);
+    }
+
+    const fromBalance = parseFloat(fromEnvelope.balance);
+    if (fromBalance < transferAmount) {
+      await dbTransaction.rollback();
+      return sendError(res, STATUS.BAD_REQUEST, ERRORS.INSUFFICIENT_FUNDS);
+    }
+
+    fromEnvelope.balance = roundMoney(fromBalance - transferAmount);
+    toEnvelope.balance = roundMoney(parseFloat(toEnvelope.balance) + transferAmount);
+
+    await fromEnvelope.save({ transaction: dbTransaction });
+    await toEnvelope.save({ transaction: dbTransaction });
+    await dbTransaction.commit();
+
+    return res.status(STATUS.OK).json({
+      data: {
+        from: formatEnvelope(fromEnvelope),
+        to: formatEnvelope(toEnvelope),
+      },
+    });
+  } catch (err) {
+    await dbTransaction.rollback();
+    return handleSequelizeError(res, err);
   }
-
-  return res.status(STATUS.OK).json({ data: result.data });
 }
-
-// ─── Exports ───────────────────────────────────────────────────────────────────
 
 module.exports = {
   createEnvelope,

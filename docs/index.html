@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="auto">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Envelope Budgeting — Track spending, manage envelopes, distribute income, and transfer funds with a clean Apple HIG-inspired interface." />
+  <meta name="description" content="Envelope Budgeting — Track spending, manage envelopes, and transfer funds with a clean Apple HIG-inspired interface." />
   <title>Envelope Budget</title>
 
   <!-- San Francisco / System Font Stack -->
@@ -25,44 +25,25 @@
         <span class="header__icon">💰</span>
         <h1 class="header__title">Envelope Budget</h1>
       </div>
-      <div class="header__controls">
-        <div class="header__stats" id="header-stats">
-          <div class="stat">
-            <span class="stat__label">Total Budget</span>
-            <span class="stat__value" id="stat-total-budget">$0.00</span>
-          </div>
-          <div class="stat">
-            <span class="stat__label">Envelopes</span>
-            <span class="stat__value" id="stat-envelope-count">0</span>
-          </div>
-          <div class="stat">
-            <span class="stat__label">Total Balance</span>
-            <span class="stat__value" id="stat-total-balance">$0.00</span>
-          </div>
+      <div class="header__stats" id="header-stats">
+        <div class="stat">
+          <span class="stat__label">Total Budget</span>
+          <span class="stat__value" id="stat-total-budget">$0.00</span>
         </div>
-        <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
-          🌗
-        </button>
+        <div class="stat">
+          <span class="stat__label">Envelopes</span>
+          <span class="stat__value" id="stat-envelope-count">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Total Balance</span>
+          <span class="stat__value" id="stat-total-balance">$0.00</span>
+        </div>
       </div>
     </div>
   </header>
 
   <!-- ─── Main Content ────────────────────────────────────────────────── -->
   <main id="app-main" class="main">
-
-    <!-- ─── Budget Overview Chart ───────────────────────────────────────── -->
-    <section class="chart-section" id="chart-section">
-      <div class="chart-card" id="chart-card">
-        <div class="chart-card__canvas-wrapper">
-          <canvas id="budget-chart" width="400" height="400"></canvas>
-        </div>
-        <div class="chart-card__legend" id="chart-legend">
-          <h2 class="chart-card__legend-title">Budget Overview</h2>
-          <p class="chart-card__empty" id="chart-empty">Create envelopes to see your budget breakdown.</p>
-          <!-- Legend items rendered by app.js -->
-        </div>
-      </div>
-    </section>
 
     <!-- ─── Actions Panel ─────────────────────────────────────────────── -->
     <section class="actions-panel" id="actions-panel">
@@ -145,36 +126,6 @@
         </form>
       </div>
 
-      <!-- Distribute Income -->
-      <div class="card card--form card--distribute" id="distribute-card">
-        <h2 class="card__heading">Distribute Income</h2>
-        <form id="distribute-form" class="form" autocomplete="off">
-          <div class="form__group">
-            <label class="form__label" for="distribute-income">Total Income</label>
-            <div class="form__input-wrapper">
-              <span class="form__prefix">$</span>
-              <input
-                class="form__input form__input--prefixed"
-                type="number"
-                id="distribute-income"
-                name="totalIncome"
-                placeholder="e.g. 3000.00"
-                min="0.01"
-                step="0.01"
-                required
-              />
-            </div>
-          </div>
-          <p style="font-size: var(--font-size-xs); color: var(--color-text-tertiary); line-height: 1.4;">
-            Splits income proportionally across all envelopes based on their budget allocation.
-          </p>
-          <button class="btn btn--accent" type="submit" id="distribute-submit">
-            <span class="btn__icon">💵</span>
-            Distribute
-          </button>
-        </form>
-      </div>
-
     </section>
 
     <!-- ─── Envelopes Grid ────────────────────────────────────────────── -->
@@ -193,14 +144,6 @@
     </section>
 
   </main>
-
-  <!-- ─── Footer ──────────────────────────────────────────────────────── -->
-  <footer class="footer">
-    <p class="footer__text">
-      Envelope Budget API &mdash; Built with Express.js &amp; vanilla JavaScript.
-      <a class="footer__link" href="https://github.com/Mahnoor-Zaffar/Envelope-Budget-API" target="_blank" rel="noopener">GitHub</a>
-    </p>
-  </footer>
 
   <!-- ─── Edit Modal ──────────────────────────────────────────────────── -->
   <div class="modal-overlay" id="edit-modal" aria-hidden="true">
@@ -273,17 +216,6 @@
             />
           </div>
         </div>
-        <div class="form__group">
-          <label class="form__label" for="spend-note">Note (optional)</label>
-          <input
-            class="form__input"
-            type="text"
-            id="spend-note"
-            name="note"
-            placeholder="e.g. Weekly groceries"
-            maxlength="256"
-          />
-        </div>
         <div class="modal__actions">
           <button class="btn btn--ghost" type="button" id="spend-cancel">Cancel</button>
           <button class="btn btn--danger" type="submit" id="spend-submit">Record Spending</button>
@@ -292,26 +224,8 @@
     </div>
   </div>
 
-  <!-- ─── Confirmation Modal ──────────────────────────────────────────── -->
-  <div class="modal-overlay" id="confirm-modal" aria-hidden="true">
-    <div class="modal" role="alertdialog" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-msg">
-      <div class="modal__header">
-        <h2 class="modal__title" id="confirm-modal-title">Confirm Delete</h2>
-        <button class="modal__close" id="confirm-modal-close" aria-label="Close modal">&times;</button>
-      </div>
-      <div class="confirm-modal__body">
-        <p class="confirm-modal__message" id="confirm-modal-msg">Are you sure?</p>
-        <p class="confirm-modal__warning">This action cannot be undone.</p>
-      </div>
-      <div class="modal__actions">
-        <button class="btn btn--ghost" type="button" id="confirm-cancel">Cancel</button>
-        <button class="btn btn--danger" type="button" id="confirm-ok">Delete</button>
-      </div>
-    </div>
-  </div>
-
   <!-- ─── Toast Container ─────────────────────────────────────────────── -->
-  <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
+  <div class="toast-container" id="toast-container"></div>
 
   <script src="app.js"></script>
 </body>

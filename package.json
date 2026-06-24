@@ -1,7 +1,7 @@
 {
   "name": "personal-budget-expressjs",
   "version": "1.0.0",
-  "description": "Enterprise-grade Envelope Budgeting API with Express.js and a native vanilla frontend client",
+  "description": "Production-ready Envelope Budgeting API with PostgreSQL, Sequelize ORM, Swagger docs, and a vanilla frontend client",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -16,6 +16,13 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.21.0"
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.0",
+    "helmet": "^8.2.0",
+    "pg": "^8.22.0",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.37.8",
+    "swagger-ui-express": "^5.0.1"
   }
 }

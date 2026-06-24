@@ -1,0 +1,24 @@
+# Render Blueprint – Envelope Budget API
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: envelope-budget-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: envelope-budget-db
+          property: connectionString
+
+databases:
+  - name: envelope-budget-db
+    plan: free
+    databaseName: envelope_budget
+    user: envelope_budget_user

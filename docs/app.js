@@ -2,9 +2,8 @@
  * Envelope Budget — Frontend Application
  *
  * Handles all client-side logic: fetching envelopes from the REST API,
- * rendering HIG-styled cards, managing modals (edit, spend, confirm),
- * processing forms, displaying toast notifications, drawing the
- * doughnut chart, toggling themes, and showing spending history.
+ * rendering HIG-styled cards, managing modals, processing forms, and
+ * displaying toast notifications.
  *
  * Zero external dependencies — pure vanilla JavaScript.
  */
@@ -14,11 +13,6 @@
 // ─── Configuration ─────────────────────────────────────────────────────────────
 
 const API_BASE = '/envelopes';
-
-const CHART_COLORS = [
-  '#007AFF', '#34C759', '#FF9500', '#AF52DE',
-  '#FF2D55', '#5AC8FA', '#FFCC00', '#5856D6',
-];
 
 // ─── DOM References ────────────────────────────────────────────────────────────
 
@@ -31,9 +25,6 @@ const DOM = {
   statEnvelopeCount: $('#stat-envelope-count'),
   statTotalBalance:  $('#stat-total-balance'),
 
-  // Theme toggle
-  themeToggle: $('#theme-toggle'),
-
   // Create form
   createForm:   $('#create-form'),
   createTitle:  $('#create-title'),
@@ -44,10 +35,6 @@ const DOM = {
   transferFrom:   $('#transfer-from'),
   transferTo:     $('#transfer-to'),
   transferAmount: $('#transfer-amount'),
-
-  // Distribute form
-  distributeForm:   $('#distribute-form'),
-  distributeIncome: $('#distribute-income'),
 
   // Envelope grid
   envelopesGrid: $('#envelopes-grid'),
@@ -68,21 +55,8 @@ const DOM = {
   spendId:         $('#spend-id'),
   spendInfo:       $('#spend-info'),
   spendAmount:     $('#spend-amount'),
-  spendNote:       $('#spend-note'),
   spendModalClose: $('#spend-modal-close'),
   spendCancel:     $('#spend-cancel'),
-
-  // Confirm modal
-  confirmModal:      $('#confirm-modal'),
-  confirmModalMsg:   $('#confirm-modal-msg'),
-  confirmModalClose: $('#confirm-modal-close'),
-  confirmCancel:     $('#confirm-cancel'),
-  confirmOk:         $('#confirm-ok'),
-
-  // Chart
-  chartCanvas: $('#budget-chart'),
-  chartLegend: $('#chart-legend'),
-  chartEmpty:  $('#chart-empty'),
 
   // Toast
   toastContainer: $('#toast-container'),
@@ -92,7 +66,6 @@ const DOM = {
 
 let envelopes = [];
 let totalBudget = 0;
-let confirmResolve = null; // For the custom confirm modal promise
 
 // ─── API Layer ─────────────────────────────────────────────────────────────────
 
@@ -146,24 +119,6 @@ const api = {
       method: 'POST',
       body: JSON.stringify({ amount }),
     }),
-
-  /** Record a spend event. */
-  spend: (id, amount, note) =>
-    apiFetch(`${API_BASE}/${id}/spend`, {
-      method: 'POST',
-      body: JSON.stringify({ amount, note }),
-    }),
-
-  /** Get spending history for an envelope. */
-  getHistory: (id) =>
-    apiFetch(`${API_BASE}/${id}/history`),
-
-  /** Distribute income across all envelopes. */
-  distribute: (totalIncome) =>
-    apiFetch(`${API_BASE}/distribute`, {
-      method: 'POST',
-      body: JSON.stringify({ totalIncome }),
-    }),
 };
 
 // ─── Formatters ────────────────────────────────────────────────────────────────
@@ -215,88 +170,6 @@ function showToast(message, type = 'info', duration = 3500) {
   }, duration);
 }
 
-// ─── Theme Toggle ──────────────────────────────────────────────────────────────
-
-const THEME_KEY = 'envelope-budget-theme';
-const THEME_ICONS = { auto: '🌗', light: '☀️', dark: '🌙' };
-const THEME_CYCLE = ['auto', 'light', 'dark'];
-
-function initTheme() {
-  const saved = localStorage.getItem(THEME_KEY) || 'auto';
-  applyTheme(saved);
-}
-
-function applyTheme(theme) {
-  document.documentElement.setAttribute('data-theme', theme);
-  DOM.themeToggle.textContent = THEME_ICONS[theme] || '🌗';
-  DOM.themeToggle.title = `Theme: ${theme.charAt(0).toUpperCase() + theme.slice(1)}`;
-  localStorage.setItem(THEME_KEY, theme);
-}
-
-function cycleTheme() {
-  const current = document.documentElement.getAttribute('data-theme') || 'auto';
-  const nextIdx = (THEME_CYCLE.indexOf(current) + 1) % THEME_CYCLE.length;
-  applyTheme(THEME_CYCLE[nextIdx]);
-}
-
-// ─── Custom Confirm Modal ──────────────────────────────────────────────────────
-
-/**
- * Show a custom confirmation dialog. Returns a Promise<boolean>.
- * @param {string} message
- * @returns {Promise<boolean>}
- */
-function showConfirm(message) {
-  DOM.confirmModalMsg.textContent = message;
-  DOM.confirmModal.classList.add('modal-overlay--visible');
-  DOM.confirmModal.setAttribute('aria-hidden', 'false');
-  DOM.confirmOk.focus();
-
-  return new Promise((resolve) => {
-    confirmResolve = resolve;
-  });
-}
-
-function closeConfirmModal(result) {
-  DOM.confirmModal.classList.remove('modal-overlay--visible');
-  DOM.confirmModal.setAttribute('aria-hidden', 'true');
-  if (confirmResolve) {
-    confirmResolve(result);
-    confirmResolve = null;
-  }
-}
-
-// ─── Focus Trap ────────────────────────────────────────────────────────────────
-
-/**
- * Trap Tab focus within a container element.
- * @param {HTMLElement} container
- * @param {KeyboardEvent} e
- */
-function trapFocus(container, e) {
-  if (e.key !== 'Tab') return;
-
-  const focusable = container.querySelectorAll(
-    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-  );
-  if (focusable.length === 0) return;
-
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-
-  if (e.shiftKey) {
-    if (document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    }
-  } else {
-    if (document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }
-}
-
 // ─── Rendering ─────────────────────────────────────────────────────────────────
 
 /**
@@ -323,7 +196,6 @@ function renderEnvelopeCard(env) {
     ? Math.min((env.balance / env.budget) * 100, 100)
     : 100;
   const health = getHealth(env.balance, env.budget);
-  const historyCount = env.spendingHistory ? env.spendingHistory.length : 0;
 
   return `
     <article class="envelope-card" data-id="${env.id}">
@@ -345,20 +217,9 @@ function renderEnvelopeCard(env) {
         </div>
       </div>
 
-      <div class="envelope-card__btn-row">
-        <button class="envelope-card__spend-btn" data-action="spend" data-id="${env.id}">
-          💸 Spend
-        </button>
-        <button class="envelope-card__history-btn" data-action="history" data-id="${env.id}">
-          📋 History${historyCount > 0 ? ` (${historyCount})` : ''}
-        </button>
-      </div>
-
-      <div class="history-panel" id="history-panel-${env.id}">
-        <div class="history-panel__inner" id="history-inner-${env.id}">
-          <!-- Filled by toggleHistory -->
-        </div>
-      </div>
+      <button class="envelope-card__spend-btn" data-action="spend" data-id="${env.id}">
+        💸 Record Spending
+      </button>
 
       <span class="envelope-card__meta">Updated ${formatDate(env.updatedAt)}</span>
     </article>
@@ -389,14 +250,14 @@ function renderEnvelopes() {
 }
 
 /**
- * Update the translucent header stats with animation.
+ * Update the translucent header stats.
  */
 function renderStats() {
-  animateStat(DOM.statTotalBudget, formatCurrency(totalBudget));
-  animateStat(DOM.statEnvelopeCount, String(envelopes.length));
+  DOM.statTotalBudget.textContent = formatCurrency(totalBudget);
+  DOM.statEnvelopeCount.textContent = envelopes.length;
 
   const totalBalance = envelopes.reduce((sum, e) => sum + e.balance, 0);
-  animateStat(DOM.statTotalBalance, formatCurrency(totalBalance));
+  DOM.statTotalBalance.textContent = formatCurrency(totalBalance);
 
   // Colour-code total balance
   const ratio = totalBudget > 0 ? totalBalance / totalBudget : 1;
@@ -404,22 +265,6 @@ function renderStats() {
   if (ratio > 0.5) DOM.statTotalBalance.classList.add('stat__value--positive');
   else if (ratio > 0.2) DOM.statTotalBalance.classList.add('stat__value--warning');
   else DOM.statTotalBalance.classList.add('stat__value--danger');
-}
-
-/**
- * Animate a stat value change with a pulse effect.
- */
-function animateStat(el, newValue) {
-  if (el.textContent !== newValue) {
-    el.textContent = newValue;
-    el.classList.remove('stat__value--animating');
-    // Force reflow
-    void el.offsetWidth;
-    el.classList.add('stat__value--animating');
-    el.addEventListener('animationend', () => {
-      el.classList.remove('stat__value--animating');
-    }, { once: true });
-  }
 }
 
 /**
@@ -446,118 +291,6 @@ function refreshUI() {
   renderEnvelopes();
   renderStats();
   renderTransferOptions();
-  renderChart();
-}
-
-// ─── Doughnut Chart ────────────────────────────────────────────────────────────
-
-/**
- * Render an animated doughnut chart on the canvas.
- */
-function renderChart() {
-  const canvas = DOM.chartCanvas;
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const size = 200;
-
-  canvas.width = size * dpr;
-  canvas.height = size * dpr;
-  canvas.style.width = size + 'px';
-  canvas.style.height = size + 'px';
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  ctx.clearRect(0, 0, size, size);
-
-  const legendItems = DOM.chartLegend.querySelectorAll('.legend-item');
-  legendItems.forEach((item) => item.remove());
-
-  if (envelopes.length === 0) {
-    DOM.chartEmpty.style.display = 'block';
-    drawEmptyDoughnut(ctx, size);
-    return;
-  }
-
-  DOM.chartEmpty.style.display = 'none';
-
-  const cx = size / 2;
-  const cy = size / 2;
-  const outerR = size / 2 - 8;
-  const innerR = outerR * 0.62;
-  const totalBalance = envelopes.reduce((s, e) => s + e.balance, 0);
-
-  if (totalBalance === 0) {
-    drawEmptyDoughnut(ctx, size);
-    renderLegendItems(envelopes, totalBalance);
-    return;
-  }
-
-  let startAngle = -Math.PI / 2; // Start from top
-
-  envelopes.forEach((env, i) => {
-    const sliceAngle = (env.balance / totalBalance) * Math.PI * 2;
-    const color = CHART_COLORS[i % CHART_COLORS.length];
-
-    ctx.beginPath();
-    ctx.moveTo(
-      cx + innerR * Math.cos(startAngle),
-      cy + innerR * Math.sin(startAngle)
-    );
-    ctx.arc(cx, cy, outerR, startAngle, startAngle + sliceAngle);
-    ctx.arc(cx, cy, innerR, startAngle + sliceAngle, startAngle, true);
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
-
-    startAngle += sliceAngle;
-  });
-
-  // Centre label
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-text-primary').trim() || '#000';
-  ctx.font = `bold 18px Inter, -apple-system, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(formatCurrency(totalBalance), cx, cy - 8);
-  ctx.font = `500 11px Inter, -apple-system, sans-serif`;
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-text-secondary').trim() || '#666';
-  ctx.fillText('TOTAL BALANCE', cx, cy + 10);
-
-  renderLegendItems(envelopes, totalBalance);
-}
-
-function drawEmptyDoughnut(ctx, size) {
-  const cx = size / 2;
-  const cy = size / 2;
-  const outerR = size / 2 - 8;
-  const innerR = outerR * 0.62;
-
-  ctx.beginPath();
-  ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-  ctx.arc(cx, cy, innerR, Math.PI * 2, 0, true);
-  ctx.closePath();
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-separator').trim() || 'rgba(60,60,67,0.12)';
-  ctx.fill();
-}
-
-function renderLegendItems(envs, totalBalance) {
-  const titleEl = DOM.chartLegend.querySelector('.chart-card__legend-title');
-  const emptyEl = DOM.chartEmpty;
-
-  // Remove old legends
-  const oldItems = DOM.chartLegend.querySelectorAll('.legend-item');
-  oldItems.forEach((item) => item.remove());
-
-  envs.forEach((env, i) => {
-    const color = CHART_COLORS[i % CHART_COLORS.length];
-    const pct = totalBalance > 0 ? ((env.balance / totalBalance) * 100).toFixed(1) : '0.0';
-    const item = document.createElement('div');
-    item.className = 'legend-item';
-    item.innerHTML = `
-      <span class="legend-swatch" style="background:${color}"></span>
-      <span class="legend-label">${escapeHtml(env.title)}</span>
-      <span class="legend-value">${formatCurrency(env.balance)} (${pct}%)</span>
-    `;
-    DOM.chartLegend.appendChild(item);
-  });
 }
 
 // ─── Data Fetching ─────────────────────────────────────────────────────────────
@@ -643,30 +376,7 @@ async function handleTransfer(e) {
 }
 
 /**
- * Handle distributing income across all envelopes.
- */
-async function handleDistribute(e) {
-  e.preventDefault();
-
-  const totalIncome = parseFloat(DOM.distributeIncome.value);
-
-  if (isNaN(totalIncome) || totalIncome <= 0) {
-    showToast('Income must be a positive number.', 'error');
-    return;
-  }
-
-  try {
-    await api.distribute(totalIncome);
-    showToast(`Distributed ${formatCurrency(totalIncome)} across all envelopes!`, 'success');
-    DOM.distributeForm.reset();
-    await loadEnvelopes();
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
-
-/**
- * Handle clicks within the envelopes grid (edit, delete, spend, history).
+ * Handle clicks within the envelopes grid (edit, delete, spend).
  */
 async function handleGridClick(e) {
   const btn = e.target.closest('[data-action]');
@@ -689,19 +399,14 @@ async function handleGridClick(e) {
     case 'spend':
       openSpendModal(envelope);
       break;
-
-    case 'history':
-      await toggleHistory(id);
-      break;
   }
 }
 
 /**
- * Delete an envelope with animation — uses custom confirm modal.
+ * Delete an envelope with animation.
  */
 async function handleDelete(id, title, cardEl) {
-  const confirmed = await showConfirm(`Delete "${title}"? All spending history will be lost.`);
-  if (!confirmed) return;
+  if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
 
   try {
     // Play exit animation
@@ -715,49 +420,6 @@ async function handleDelete(id, title, cardEl) {
     await loadEnvelopes();
   } catch (err) {
     if (cardEl) cardEl.classList.remove('envelope-card--removing');
-    showToast(err.message, 'error');
-  }
-}
-
-// ─── Spending History ──────────────────────────────────────────────────────────
-
-/**
- * Toggle the spending history panel for an envelope.
- */
-async function toggleHistory(id) {
-  const panel = $(`#history-panel-${id}`);
-  if (!panel) return;
-
-  if (panel.classList.contains('history-panel--open')) {
-    panel.classList.remove('history-panel--open');
-    return;
-  }
-
-  // Fetch history
-  try {
-    const history = await api.getHistory(id);
-    const inner = $(`#history-inner-${id}`);
-
-    if (!history || history.length === 0) {
-      inner.innerHTML = '<p class="history-panel__empty">No spending recorded yet.</p>';
-    } else {
-      inner.innerHTML = history
-        .slice()
-        .reverse()
-        .map((event) => `
-          <div class="history-item">
-            <div class="history-item__info">
-              <span class="history-item__note">${event.note ? escapeHtml(event.note) : 'Spending'}</span>
-              <span class="history-item__time">${formatDate(event.timestamp)}</span>
-            </div>
-            <span class="history-item__amount">-${formatCurrency(event.amount)}</span>
-          </div>
-        `)
-        .join('');
-    }
-
-    panel.classList.add('history-panel--open');
-  } catch (err) {
     showToast(err.message, 'error');
   }
 }
@@ -816,7 +478,6 @@ function openSpendModal(envelope) {
   `;
   DOM.spendAmount.value = '';
   DOM.spendAmount.max = envelope.balance;
-  DOM.spendNote.value = '';
   DOM.spendModal.classList.add('modal-overlay--visible');
   DOM.spendModal.setAttribute('aria-hidden', 'false');
   DOM.spendAmount.focus();
@@ -833,7 +494,6 @@ async function handleSpendSubmit(e) {
 
   const id = parseInt(DOM.spendId.value, 10);
   const amount = parseFloat(DOM.spendAmount.value);
-  const note = DOM.spendNote.value.trim();
   const envelope = envelopes.find((env) => env.id === id);
 
   if (!envelope) {
@@ -846,13 +506,15 @@ async function handleSpendSubmit(e) {
     return;
   }
 
-  if (amount > envelope.balance) {
+  const newBalance = Math.round((envelope.balance - amount) * 100) / 100;
+
+  if (newBalance < 0) {
     showToast('Insufficient funds! Cannot overdraft.', 'error');
     return;
   }
 
   try {
-    await api.spend(id, amount, note);
+    await api.update(id, { balance: newBalance });
     showToast(`Spent ${formatCurrency(amount)} from "${envelope.title}"`, 'success');
     closeSpendModal();
     await loadEnvelopes();
@@ -867,7 +529,6 @@ function bindEvents() {
   // Forms
   DOM.createForm.addEventListener('submit', handleCreate);
   DOM.transferForm.addEventListener('submit', handleTransfer);
-  DOM.distributeForm.addEventListener('submit', handleDistribute);
   DOM.editForm.addEventListener('submit', handleEditSubmit);
   DOM.spendForm.addEventListener('submit', handleSpendSubmit);
 
@@ -888,37 +549,14 @@ function bindEvents() {
     if (e.target === DOM.spendModal) closeSpendModal();
   });
 
-  // Confirm modal
-  DOM.confirmOk.addEventListener('click', () => closeConfirmModal(true));
-  DOM.confirmCancel.addEventListener('click', () => closeConfirmModal(false));
-  DOM.confirmModalClose.addEventListener('click', () => closeConfirmModal(false));
-  DOM.confirmModal.addEventListener('click', (e) => {
-    if (e.target === DOM.confirmModal) closeConfirmModal(false);
-  });
-
-  // Theme toggle
-  DOM.themeToggle.addEventListener('click', cycleTheme);
-
-  // Keyboard: Escape closes modals, Tab is trapped within open modals
+  // Keyboard: Escape closes modals
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (DOM.confirmModal.classList.contains('modal-overlay--visible')) {
-        closeConfirmModal(false);
-      } else if (DOM.editModal.classList.contains('modal-overlay--visible')) {
+      if (DOM.editModal.classList.contains('modal-overlay--visible')) {
         closeEditModal();
-      } else if (DOM.spendModal.classList.contains('modal-overlay--visible')) {
-        closeSpendModal();
       }
-    }
-
-    // Focus trap for open modals
-    if (e.key === 'Tab') {
-      if (DOM.confirmModal.classList.contains('modal-overlay--visible')) {
-        trapFocus(DOM.confirmModal, e);
-      } else if (DOM.editModal.classList.contains('modal-overlay--visible')) {
-        trapFocus(DOM.editModal, e);
-      } else if (DOM.spendModal.classList.contains('modal-overlay--visible')) {
-        trapFocus(DOM.spendModal, e);
+      if (DOM.spendModal.classList.contains('modal-overlay--visible')) {
+        closeSpendModal();
       }
     }
   });
@@ -927,7 +565,6 @@ function bindEvents() {
 // ─── Initialization ────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  initTheme();
   bindEvents();
   loadEnvelopes();
 });
