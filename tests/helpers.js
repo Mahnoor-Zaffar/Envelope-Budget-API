@@ -2,7 +2,7 @@
  * Shared test utilities — database reset and HTTP helpers.
  */
 
-const { Envelope, Transaction, initDatabase, sequelize } = require('../models');
+const { Envelope, Transaction, User, initDatabase, sequelize } = require('../models');
 
 async function setupTestDatabase() {
   await initDatabase();
@@ -12,6 +12,7 @@ async function setupTestDatabase() {
 async function resetDatabase() {
   await Transaction.destroy({ where: {}, truncate: true, cascade: true });
   await Envelope.destroy({ where: {}, truncate: true, cascade: true, restartIdentity: true });
+  await User.destroy({ where: {}, truncate: true, cascade: true, restartIdentity: true });
 }
 
 async function createEnvelope(title, budget) {

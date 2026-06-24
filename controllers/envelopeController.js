@@ -17,6 +17,8 @@ const {
 const {
   roundMoney,
   parseId,
+  parsePagination,
+  buildPaginationMeta,
   sendError,
   handleSequelizeError,
   formatEnvelope,
@@ -62,10 +64,16 @@ async function createEnvelope(req, res) {
 
 // ─── GET /envelopes ────────────────────────────────────────────────────────────
 
-async function getAllEnvelopes(_req, res) {
+async function getAllEnvelopes(req, res) {
   try {
-    const envelopes = await Envelope.findAll({ order: [['id', 'ASC']] });
-    const totalBudget = envelopes.reduce(
+    const { page, limit, offset } = parsePagination(req.query);
+    const { count, rows } = await Envelope.findAndCountAll({
+      order: [['id', 'ASC']],
+      limit,
+      offset,
+    });
+
+    const totalBudget = rows.reduce(
       (sum, envelope) => roundMoney(sum + parseFloat(envelope.budget)),
       0,
     );
@@ -73,7 +81,8 @@ async function getAllEnvelopes(_req, res) {
     return res.status(STATUS.OK).json({
       data: {
         totalBudget,
-        envelopes: envelopes.map(formatEnvelope),
+        envelopes: rows.map(formatEnvelope),
+        pagination: buildPaginationMeta(page, limit, count),
       },
     });
   } catch (err) {

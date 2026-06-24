@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "NODE_ENV=test node --test tests/api.test.js"
+    "test": "NODE_ENV=test node --test tests/api.test.js",
+    "migrate": "NODE_ENV=production node -e \"require('./models').initDatabase().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\""
   },
   "keywords": [
     "budget",
@@ -20,10 +21,12 @@
     "supertest": "^7.1.0"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.21.0",
     "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.22.0",
     "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.8",

@@ -3,7 +3,7 @@
 ## 📋 Kanban Board
 
 ### 🟥 TO DO
-- *(none — Part III complete)*
+- *(none — portfolio hardening complete)*
 
 ---
 
@@ -15,27 +15,26 @@
 ### 🟩 DONE
 
 #### Part II
-- [x] Review project requirements and Part II scope
-- [x] Standardize Product Requirements Document (`PRD.md`)
-- [x] Plan project and system boundaries
-- [x] Design database schema & relationships (`Envelope.hasMany(Transaction)`)
-- [x] Connect database to server (Sequelize pool via `DATABASE_URL` in `config/database.js`)
-- [x] Create envelope table schema (`models/envelope.js`)
-- [x] Implement transaction table schema (`models/transaction.js`)
-- [x] Update existing envelope endpoints (async Sequelize CRUD + atomic transfers)
-- [x] Create transaction CRUD endpoints (`/transactions` with balance deduction/refund logic)
-- [x] Write Swagger documentation (`/api-docs`, `docs/swagger.json`)
-- [x] Setup local database (PostgreSQL running locally with `.env` configured)
-- [x] Initialize Git tracking and push Part II refactor to GitHub
-- [x] Update frontend for Part II API (`POST /transactions`, `GET /transactions`)
-- [x] Deploy application on Render
-  - Live at https://envelope-budget-api.onrender.com
+- [x] PostgreSQL + Sequelize refactor, Swagger, Render deploy
 
 #### Part III
-- [x] Add MIT `LICENSE` file
-- [x] Re-implement income distribution (`POST /envelopes/distribute`)
-- [x] Add per-envelope fund top-up (`POST /envelopes/:id/fund`)
-- [x] Transaction edit/delete UI in Activity ledger
-- [x] API integration tests (`npm test` with supertest + node:test)
-- [x] Linear UI refactor with sidebar navigation
-- [x] Update README screenshots and project status
+- [x] Income/funding, transaction UI parity, integration tests, Linear UI
+
+#### Portfolio improvements (15 tasks)
+- [x] 1. Commit pending local changes *(working tree was clean)*
+- [x] 2. Commit message guidelines (`CONTRIBUTING.md`)
+- [x] 3. Render redeploy workflow documented (`DEPLOYMENT.md`)
+- [x] 4. README **Live Demo** section with production URLs
+- [x] 5. PRD consolidation (`DOCS.md` index)
+- [x] 6. GitHub Actions CI (`.github/workflows/ci.yml`)
+- [x] 7. Swagger updated for distribute, fund, auth, reports, pagination
+- [x] 8. Sequelize migrations (`migrations/runner.js`, production boot)
+- [x] 9. `TEST_DATABASE_URL` in `.env.example` + README testing section
+- [x] 10. Improved DB init error logging (`server.js`)
+- [x] 11. Render free-tier caveats in README + DEPLOYMENT
+- [x] 12. Auth foundation (`/auth/register`, `/auth/login`, `/auth/me`, JWT)
+- [x] 13. Pagination on `GET /envelopes` and `GET /transactions`
+- [x] 14. Monthly report (`GET /reports/monthly`)
+- [x] 15. Custom domain setup documented (`DEPLOYMENT.md`)
+
+**Live:** https://envelope-budget-api.onrender.com

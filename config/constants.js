@@ -16,6 +16,12 @@ const API_BASE = '/envelopes';
 /** @type {string} Base path prefix for the transactions REST API. */
 const TRANSACTIONS_BASE = '/transactions';
 
+/** @type {string} Base path prefix for reports. */
+const REPORTS_BASE = '/reports';
+
+/** @type {string} Base path prefix for authentication. */
+const AUTH_BASE = '/auth';
+
 // ─── Budget Defaults ───────────────────────────────────────────────────────────
 
 /** @type {number} The initial global budget the system starts with. */
@@ -36,6 +42,7 @@ const STATUS = Object.freeze({
   CREATED: 201,
   NO_CONTENT: 204,
   BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
   NOT_FOUND: 404,
   CONFLICT: 409,
   INTERNAL_ERROR: 500,
@@ -63,12 +70,19 @@ const ERRORS = Object.freeze({
   MISSING_RECIPIENT: 'Validation failed: "recipient" is required and must be a non-empty string.',
   MISSING_DATE: 'Validation failed: "date" is required and must be a valid timestamp.',
   MISSING_ENVELOPE_ID: 'Validation failed: "envelopeId" is required and must be a positive integer.',
+  INVALID_EMAIL: 'Validation failed: a valid email address is required.',
+  INVALID_PASSWORD: 'Validation failed: password must be at least 8 characters.',
+  INVALID_CREDENTIALS: 'Invalid email or password.',
+  DUPLICATE_EMAIL: 'An account with this email already exists.',
+  INVALID_REPORT_PARAMS: 'Validation failed: "year" and "month" query params are required.',
 });
 
 module.exports = {
   PORT,
   API_BASE,
   TRANSACTIONS_BASE,
+  REPORTS_BASE,
+  AUTH_BASE,
   DEFAULT_TOTAL_BUDGET,
   MAX_TITLE_LENGTH,
   MAX_BUDGET_VALUE,

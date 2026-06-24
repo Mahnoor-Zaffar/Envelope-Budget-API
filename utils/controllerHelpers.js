@@ -81,9 +81,35 @@ function formatTransaction(transaction) {
   };
 }
 
+/**
+ * Parse `page` and `limit` query params with sane defaults and caps.
+ * @param {import('express').Request['query']} query
+ * @returns {{ page: number, limit: number, offset: number }}
+ */
+function parsePagination(query) {
+  const page = Math.max(1, parseInt(query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 20));
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+}
+
+/**
+ * Build pagination metadata for list responses.
+ */
+function buildPaginationMeta(page, limit, total) {
+  return {
+    page,
+    limit,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+  };
+}
+
 module.exports = {
   roundMoney,
   parseId,
+  parsePagination,
+  buildPaginationMeta,
   sendError,
   handleSequelizeError,
   formatEnvelope,

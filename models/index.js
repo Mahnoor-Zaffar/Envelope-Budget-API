@@ -7,6 +7,7 @@
 const sequelize = require('../config/database');
 const Envelope = require('./envelope');
 const Transaction = require('./transaction');
+const User = require('./user');
 
 Envelope.hasMany(Transaction, {
   foreignKey: 'envelopeId',
@@ -21,17 +22,28 @@ Transaction.belongsTo(Envelope, {
 });
 
 /**
- * Authenticate and synchronize models with the database schema.
+ * Authenticate and prepare the database schema.
+ * Production uses versioned migrations; development uses sync.
  * @returns {Promise<void>}
  */
 async function initDatabase() {
   await sequelize.authenticate();
-  await sequelize.sync();
+
+  if (process.env.NODE_ENV === 'production') {
+    const { runMigrations } = require('../migrations/runner');
+    await runMigrations();
+    return;
+  }
+
+  if (process.env.NODE_ENV !== 'test') {
+    await sequelize.sync();
+  }
 }
 
 module.exports = {
   sequelize,
   Envelope,
   Transaction,
+  User,
   initDatabase,
 };

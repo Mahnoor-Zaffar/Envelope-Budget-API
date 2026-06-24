@@ -21,10 +21,12 @@ const cors = require('cors');
 const helmet = require('helmet');
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./docs/swagger.json');
-const { PORT, API_BASE, TRANSACTIONS_BASE, STATUS, ERRORS } = require('./config/constants');
+const { PORT, API_BASE, TRANSACTIONS_BASE, REPORTS_BASE, AUTH_BASE, STATUS, ERRORS } = require('./config/constants');
 const { initDatabase } = require('./models');
 const envelopeRoutes = require('./routes/envelopeRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
+const authRoutes = require('./routes/authRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 
 const app = express();
 
@@ -95,6 +97,8 @@ app.get('/health', (_req, res) => {
 
 app.use(API_BASE, envelopeRoutes);
 app.use(TRANSACTIONS_BASE, transactionRoutes);
+app.use(REPORTS_BASE, reportRoutes);
+app.use(AUTH_BASE, authRoutes);
 
 // ─── 404 Catch-All ──────────────────────────────────────────────────────────────
 
@@ -122,7 +126,9 @@ async function startServer() {
     await initDatabase();
     console.log('✓  PostgreSQL connected and models synchronized.');
   } catch (err) {
-    console.error('✖  Database initialization failed:', err.message);
+    const detail = err.parent?.message || err.message || err.toString();
+    console.error('✖  Database initialization failed:', detail);
+    if (err.stack) console.error(err.stack);
     process.exit(1);
   }
 
@@ -130,6 +136,8 @@ async function startServer() {
     console.log(`✦  Envelope Budget API listening on http://localhost:${PORT}`);
     console.log(`   Envelopes:    ${API_BASE}`);
     console.log(`   Transactions: ${TRANSACTIONS_BASE}`);
+    console.log(`   Reports:      ${REPORTS_BASE}`);
+    console.log(`   Auth:         ${AUTH_BASE}`);
     console.log(`   Swagger:      /api-docs`);
     console.log(`   Health:       /health`);
   });

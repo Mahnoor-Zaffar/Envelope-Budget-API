@@ -3,18 +3,24 @@
   "info": {
     "title": "Envelope Budget API",
     "description": "Production-ready REST API for envelope budgeting with PostgreSQL persistence, transaction logging, and atomic fund transfers.",
-    "version": "2.0.0"
+    "version": "3.0.0"
   },
   "servers": [
     {
       "url": "http://localhost:3000",
       "description": "Local development"
+    },
+    {
+      "url": "https://envelope-budget-api.onrender.com",
+      "description": "Production (Render)"
     }
   ],
   "tags": [
     { "name": "Health", "description": "Server health checks" },
-    { "name": "Envelopes", "description": "Budget envelope CRUD and transfers" },
-    { "name": "Transactions", "description": "External expenditure logs" }
+    { "name": "Envelopes", "description": "Budget envelope CRUD, transfers, and funding" },
+    { "name": "Transactions", "description": "External expenditure logs" },
+    { "name": "Reports", "description": "Spending analytics" },
+    { "name": "Auth", "description": "JWT authentication (Part IV foundation)" }
   ],
   "paths": {
     "/health": {
@@ -42,7 +48,11 @@
     "/envelopes": {
       "get": {
         "tags": ["Envelopes"],
-        "summary": "List all envelopes",
+        "summary": "List envelopes (paginated)",
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" }
+        ],
         "responses": {
           "200": {
             "description": "Envelope collection",
@@ -58,7 +68,8 @@
                         "envelopes": {
                           "type": "array",
                           "items": { "$ref": "#/components/schemas/Envelope" }
-                        }
+                        },
+                        "pagination": { "$ref": "#/components/schemas/Pagination" }
                       }
                     }
                   }
@@ -219,10 +230,66 @@
         }
       }
     },
+    "/envelopes/distribute": {
+      "post": {
+        "tags": ["Envelopes"],
+        "summary": "Distribute income proportionally by budget allocation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["totalIncome"],
+                "properties": {
+                  "totalIncome": { "type": "number", "minimum": 0.01, "example": 3000 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Income distributed" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/envelopes/{id}/fund": {
+      "parameters": [{ "$ref": "#/components/parameters/EnvelopeId" }],
+      "post": {
+        "tags": ["Envelopes"],
+        "summary": "Add funds to a single envelope balance",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["amount"],
+                "properties": {
+                  "amount": { "type": "number", "minimum": 0.01, "example": 50 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Funds added" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
     "/transactions": {
       "get": {
         "tags": ["Transactions"],
-        "summary": "List all transactions",
+        "summary": "List transactions (paginated)",
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" }
+        ],
         "responses": {
           "200": {
             "description": "Transaction collection",
@@ -234,7 +301,8 @@
                     "data": {
                       "type": "array",
                       "items": { "$ref": "#/components/schemas/Transaction" }
-                    }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
                   }
                 }
               }
@@ -341,10 +409,89 @@
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
+    },
+    "/reports/monthly": {
+      "get": {
+        "tags": ["Reports"],
+        "summary": "Monthly spending report by envelope",
+        "parameters": [
+          { "name": "year", "in": "query", "required": true, "schema": { "type": "integer", "example": 2026 } },
+          { "name": "month", "in": "query", "required": true, "schema": { "type": "integer", "minimum": 1, "maximum": 12, "example": 6 } }
+        ],
+        "responses": {
+          "200": { "description": "Monthly summary" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register a new user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User created with JWT" },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login and receive JWT",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "JWT issued" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Current authenticated user",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "User profile" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
     }
   },
   "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
     "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "default": 1 }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+      },
       "EnvelopeId": {
         "name": "id",
         "in": "path",
@@ -431,6 +578,23 @@
         "properties": {
           "error": { "type": "string", "example": "Validation failed." }
         }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer", "example": 1 },
+          "limit": { "type": "integer", "example": 20 },
+          "total": { "type": "integer", "example": 42 },
+          "totalPages": { "type": "integer", "example": 3 }
+        }
+      },
+      "AuthRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "minLength": 8 }
+        }
       }
     },
     "responses": {
@@ -452,6 +616,14 @@
       },
       "InternalError": {
         "description": "Unexpected server error",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Authentication required or invalid token",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/Error" }

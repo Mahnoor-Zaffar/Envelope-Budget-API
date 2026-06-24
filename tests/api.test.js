@@ -179,4 +179,55 @@ describe('Envelope Budget API', () => {
       assert.match(txRes.body.error, /insufficient funds/i);
     });
   });
+
+  describe('Pagination', () => {
+    it('paginates envelope listings', async () => {
+      await request(app).post('/envelopes').send({ title: 'A', budget: 10 });
+      await request(app).post('/envelopes').send({ title: 'B', budget: 20 });
+
+      const res = await request(app).get('/envelopes?page=1&limit=1');
+      assert.equal(res.status, 200);
+      assert.equal(res.body.data.envelopes.length, 1);
+      assert.equal(res.body.data.pagination.total, 2);
+      assert.equal(res.body.data.pagination.totalPages, 2);
+    });
+  });
+
+  describe('Reports', () => {
+    it('returns monthly spending summary', async () => {
+      const envelope = await request(app)
+        .post('/envelopes')
+        .send({ title: 'Food', budget: 100 });
+
+      await request(app).post('/transactions').send({
+        date: '2026-06-15T12:00:00.000Z',
+        amount: 25,
+        recipient: 'Store',
+        envelopeId: envelope.body.data.id,
+      });
+
+      const reportRes = await request(app).get('/reports/monthly?year=2026&month=6');
+      assert.equal(reportRes.status, 200);
+      assert.equal(reportRes.body.data.totalSpent, 25);
+      assert.equal(reportRes.body.data.transactionCount, 1);
+    });
+  });
+
+  describe('Auth', () => {
+    it('registers, logs in, and returns /auth/me', async () => {
+      const registerRes = await request(app)
+        .post('/auth/register')
+        .send({ email: 'user@example.com', password: 'password123' });
+
+      assert.equal(registerRes.status, 201);
+      assert.ok(registerRes.body.data.token);
+
+      const meRes = await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${registerRes.body.data.token}`);
+
+      assert.equal(meRes.status, 200);
+      assert.equal(meRes.body.data.user.email, 'user@example.com');
+    });
+  });
 });

@@ -11,6 +11,18 @@
 
 ---
 
+## Live Demo
+
+| Resource | URL |
+|----------|-----|
+| **App** | https://envelope-budget-api.onrender.com |
+| **Health** | https://envelope-budget-api.onrender.com/health |
+| **Swagger** | https://envelope-budget-api.onrender.com/api-docs |
+
+> Free-tier services sleep when idle — first load may take ~30 seconds.
+
+---
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -280,7 +292,7 @@ All endpoints accept and return **JSON**. Base URLs:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/envelopes` | Create envelope (`title`, `budget`) |
-| `GET` | `/envelopes` | List all envelopes + aggregated `totalBudget` |
+| `GET` | `/envelopes` | List envelopes (`?page=&limit=`) + aggregated `totalBudget` |
 | `GET` | `/envelopes/:id` | Get envelope by ID |
 | `PUT` | `/envelopes/:id` | Update `title`, `budget`, and/or `balance` |
 | `DELETE` | `/envelopes/:id` | Delete envelope (cascades transactions) |
@@ -309,10 +321,24 @@ curl -X POST http://localhost:3000/envelopes/transfer/1/2 \
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/transactions` | Log expenditure; deducts from envelope balance |
-| `GET` | `/transactions` | List all transactions |
+| `GET` | `/transactions` | List transactions (`?page=&limit=`) |
 | `GET` | `/transactions/:id` | Get transaction by ID |
 | `PUT` | `/transactions/:id` | Update transaction; recalculates balances |
 | `DELETE` | `/transactions/:id` | Delete transaction; refunds envelope balance |
+
+### Reports
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/reports/monthly?year=&month=` | Monthly spend summary by envelope |
+
+### Auth (Part IV foundation)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/auth/register` | Create account (`email`, `password`) → JWT |
+| `POST` | `/auth/login` | Login → JWT |
+| `GET` | `/auth/me` | Current user (requires `Authorization: Bearer`) |
 
 **Create transaction example:**
 
@@ -410,11 +436,21 @@ Production deployment targets **Render** with a managed PostgreSQL instance.
 
 Render injects `DATABASE_URL` automatically when the database is linked to the web service. Set `NODE_ENV=production` to enable SSL for database connections.
 
+### Render free-tier caveats
+
+| Limit | Impact |
+|-------|--------|
+| Web service sleep | ~30s cold start after inactivity |
+| Free Postgres expires in 30 days | Export or upgrade before data loss |
+| One free DB per account | Blueprint/manual setup must reuse or upgrade |
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for redeploy steps and custom domain setup.
+
 ---
 
 ## Design System
 
-The UI follows the **Linear.app** aesthetic. Full visual specs are in [`design.md`](design.md) (generated via `npx getdesign@latest add linear.app`).
+The UI follows the **Linear.app** aesthetic. Full visual specs are in [`linear.app/DESIGN.md`](linear.app/DESIGN.md).
 
 | Token | Value | Usage |
 |-------|-------|-------|
@@ -433,12 +469,15 @@ Typography uses **Inter** for UI and **JetBrains Mono** for numeric values. Spac
 
 | Document | Purpose |
 |----------|---------|
+| [`DOCS.md`](DOCS.md) | Documentation index — all PRDs and guides |
 | [`PRD.md`](PRD.md) | Product requirements — Part II scope and acceptance criteria |
-| [`todo.md`](todo.md) | Kanban board — current task status |
-| [`DEPLOYMENT.md`](DEPLOYMENT.md) | Render deployment instructions |
-| [`docs/swagger.json`](docs/swagger.json) | OpenAPI 3.0 specification |
-| [`design.md`](design.md) | Linear.app design system reference |
 | [`PRD-PART-III.md`](PRD-PART-III.md) | Part III scope — income, UI parity, tests |
+| [`PRD-PART-IV.md`](PRD-PART-IV.md) | Part IV — auth, pagination, reports, CI |
+| [`todo.md`](todo.md) | Kanban board — current task status |
+| [`DEPLOYMENT.md`](DEPLOYMENT.md) | Render deployment, redeploy, custom domain |
+| [`docs/swagger.json`](docs/swagger.json) | OpenAPI 3.0 specification |
+| [`linear.app/DESIGN.md`](linear.app/DESIGN.md) | Linear.app design system reference |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Commit format and local checks |
 | [`LICENSE`](LICENSE) | MIT license |
 
 ---

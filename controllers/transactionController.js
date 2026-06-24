@@ -15,6 +15,8 @@ const {
 const {
   roundMoney,
   parseId,
+  parsePagination,
+  buildPaginationMeta,
   sendError,
   handleSequelizeError,
   formatTransaction,
@@ -93,14 +95,18 @@ async function createTransaction(req, res) {
 
 // ─── GET /transactions ─────────────────────────────────────────────────────────
 
-async function getAllTransactions(_req, res) {
+async function getAllTransactions(req, res) {
   try {
-    const transactions = await Transaction.findAll({
+    const { page, limit, offset } = parsePagination(req.query);
+    const { count, rows } = await Transaction.findAndCountAll({
       order: [['date', 'DESC'], ['id', 'DESC']],
+      limit,
+      offset,
     });
 
     return res.status(STATUS.OK).json({
-      data: transactions.map(formatTransaction),
+      data: rows.map(formatTransaction),
+      pagination: buildPaginationMeta(page, limit, count),
     });
   } catch (err) {
     return handleSequelizeError(res, err);
